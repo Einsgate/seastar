@@ -13,6 +13,10 @@ defalut search directory of ld. For the default Seastar library, just configure 
 --ldflags=-lbenchmark. For the test cases, we need to modify the configure.py file.
 Find out the extralibs variable and add '-lbenchmark'.
 
+* The full command for configuration when using clang:
+./congifure --enable-dpdk --compiler=clang-3.9 --ldflags=-lbenchmark --mode=release --cflags=-Wno-deprecated-register
+The added cflags prevents complier from complaining about the "register" keyword when compiling dpdk.
+
 Promise and Future in Seastar
 -----------------------------
 
