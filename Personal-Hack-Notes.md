@@ -5,13 +5,15 @@ My personal hack notes
 The master version just doesn't work.
 
 * How to add clang support - Configure the project with --compiler=clang-3.9. 
-But this makes DPDK unusable due to a build error.
 
 * How to link against google benchmark - Build google benchmark and install
 it first. The install directory on Ubuntu 16.04 /usr/local/lib is included in the
 defalut search directory of ld. For the default Seastar library, just configure Seastar with 
 --ldflags=-lbenchmark. For the test cases, we need to modify the configure.py file.
 Find out the extralibs variable and add '-lbenchmark'.
+
+* To correctly compile dpdk using clang, we must remove some compiler flags added by configure.py. 
+Remove " -Wno-error=literal-suffix -Wno-literal-suffix" in configure.py
 
 * The full command for configuration when using clang:
 ./congifure --enable-dpdk --compiler=clang-3.9 --ldflags=-lbenchmark --mode=release --cflags=-Wno-deprecated-register
