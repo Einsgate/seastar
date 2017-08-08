@@ -73,4 +73,6 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 * Especially, when adding `reactor` options (when calling `reactor::get_options_description()`), `network_stack_registry::list()` is called to get the name of available networking stacks.
 
-* 
+* The `network_stack_registry` contains singltons for registering Seastar software network stacks. Among the set of the public methods provided by `network_stack_registry`, `register_stack` is the one that network stack implementation uses to register. But network implementation in Seastar do not directly call `register_stack` method, instead, Seastar provides another class, `network_stack_registrator` as a warper to call `register_stack` method.
+
+* Two network stacks are added by `network_stack_registrator` (I can only globally find two actual usage of the `network_stack_registrator` from the Seastar codebase). The first one is the `posix` stack, the second one is the high-performance `native-stack`. We are more interested in the implementation of the second network stack. 
