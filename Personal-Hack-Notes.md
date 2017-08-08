@@ -83,6 +83,10 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 * After some manipulation, the initialization flow steps into `app_template::run_deprecated`. The command line arguments are passed and all the configured options are stored into `bpo::variables_map configuration`. Finally, `run_deprecated` calls `smp::configure(configuration)` to do the actual seastar initializtion work.
 
+* More to come.
+
 ## Seastar Network Stack Initialization
 
-* 
+* At the end of `smp::configure(configuration)`, `engine().configure(configuration)` is called to initialize the network stack. Then the corresponding `create` function registered by the network stack will be called, passing in the current `variable_map` options as argument. Let's consider the `native-stack` as an example. The `future<std::unique_ptr<network_stack>> create(boost::program_options::variables_map opts)` function in native-stack.cc is called to initialize the native-stack.
+
+
