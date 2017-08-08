@@ -62,3 +62,15 @@ The above code manipulates at three arbitrary arguments. It uses std::forward_as
 for the input arguments. Then it constructs a tuple, containing the references to the first n-1 arguments, and assigns it to rvalue refenence just_values. It constructs a rvalue reference just_func for the last arguments. 
 
 Finally, it constructs obj, moving the first n-1 arguments inside the obj unique_ptr and applys just_func to the underlying object pointed to by obj.
+
+# Seastar Code Review
+
+## Seastar initialization
+
+* Discuss how to initialize Seastar system code, especially initialize the network stack.
+
+* Initially, define a `app_template` object. The `app_template` object contains `boost::program_options::options_description _opts`. Several program options are then added to `_ops` when `app_template` is constructed, including `reactor` options, `seastar::metrics` options, `smp` options (including how many cpus and memories are used) and `scollectd` options.
+
+* Especially, when adding `reactor` options (when calling `reactor::get_options_description()`), `network_stack_registry::list()` is called to get the name of available networking stacks.
+
+* 
