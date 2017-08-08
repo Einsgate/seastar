@@ -71,8 +71,18 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 * Initially, define a `app_template` object. The `app_template` object contains `boost::program_options::options_description _opts`. Several program options are then added to `_ops` when `app_template` is constructed, including `reactor` options, `seastar::metrics` options, `smp` options (including how many cpus and memories are used) and `scollectd` options.
 
-* Especially, when adding `reactor` options (when calling `reactor::get_options_description()`), `network_stack_registry::list()` is called to get the name of available networking stacks.
+* Especially, when adding `reactor` options (when calling `reactor::get_options_description()`), `network_stack_registry::list()` is called to get the name of available networking stacks. The options of the `network_stack_registry` is also added to the options of the `reactor`.
 
-* The `network_stack_registry` contains singltons for registering Seastar software network stacks. Among the set of the public methods provided by `network_stack_registry`, `register_stack` is the one that network stack implementation uses to register. But network implementation in Seastar do not directly call `register_stack` method, instead, Seastar provides another class, `network_stack_registrator` as a warper to call `register_stack` method.
+    * The `network_stack_registry` contains singltons for registering Seastar software network stacks. Among the set of the public methods provided by `network_stack_registry`, `register_stack` is the one that network stack implementation uses to register. But network implementation in Seastar do not directly call `register_stack` method, instead, Seastar provides another class, `network_stack_registrator` as a warper to call `register_stack` method.
 
-* Two network stacks are added by `network_stack_registrator` (I can only globally find two actual usage of the `network_stack_registrator` from the Seastar codebase). The first one is the `posix` stack, the second one is the high-performance `native-stack`. We are more interested in the implementation of the second network stack. 
+    * Two network stacks are added by `network_stack_registrator` (I can only globally find two actual usage of the `network_stack_registrator` from the Seastar codebase). The first one is the `posix` stack, the second one is the high-performance `native-stack`. We are more interested in the implementation of the second network stack. 
+    
+    * `network_stack_registry::register_stack` add a key-value pair to the `_map()` of `network_stack_registry`. The key is the name of the network stack. The value is an intialization function. The options associated with the network stack is added to the `opts` field. 
+    
+    * The `list()` method simply retrieves all the keys from the `_map()` of `network_stack_registry`.
+
+* After some manipulation, the initialization flow steps into `app_template::run_deprecated`. The command line arguments are passed and all the configured options are stored into `bpo::variables_map configuration`. Finally, `run_deprecated` calls `smp::configure(configuration)` to do the actual seastar initializtion work.
+
+## Seastar Network Stack Initialization
+
+* 
