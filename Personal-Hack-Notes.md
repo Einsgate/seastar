@@ -87,6 +87,23 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 ## Seastar Network Stack Initialization
 
-* At the end of `smp::configure(configuration)`, `engine().configure(configuration)` is called to initialize the network stack. Then the corresponding `create` function registered by the network stack will be called, passing in the current `variable_map` options as argument. Let's consider the `native-stack` as an example. The `future<std::unique_ptr<network_stack>> create(boost::program_options::variables_map opts)` function in native-stack.cc is called to initialize the native-stack.
+* `void reactor::configure(boost::program_options::variables_map vm)`: At the end of `smp::configure(configuration)`, `engine().configure(configuration)` is called to initialize the network stack. Inside `engine().configure(configuration)` function
+
+* `network_stack_registry::create`: Then the corresponding `create` function registered by the network stack will be called, passing in the current `variable_map` options as argument. Let's consider the `native-stack` as an example. The `native_network_stack::create` function in native-stack.cc is called to initialize the native-stack. 
+
+* `native_network_stack::create`: This function will first call `create_native_net_device` to create a native network device. Depending on the the contents of the configuration parameters, `create_native_net_device` may create different network devices, including virtio, dpdk and xen devices. We focus on creating the dpdk net device first.
+    
+* `create_dpdk_net_device`: Check the number of the available RTE devices. Then construct a `dpdk::dpdk_device`. Note that the default initialization path for Seastar can only use physical port with index 0.
+
+* `dpdk::dpdk_device constructor`: The function first calls `dpdk_device::init_port_start` to perform basic hardware based intialization, including setting up the RSS. Then the function initiates some data collectors and measurement metrics. 
+
+* Back to `create_native_net_device`, the created `dpdk_device` pointer is made into a shared pointer, then passed into each CPU core for further execution. On each CPU core, the `init_local_queue` member function of `dpdk_device` pointer is created to create a `qp` (queue provider?).
+
+* `init_local_queue` is a virtual function, the actual implementation is directed to the implementation of `dpdk_device`. A `dpdk_qp` is constructed and then an annoymous function is sent to each CPU. When all the queues are constructed, `init_port_fini` is called to finalize the initilization.
+
+* `dpdk_qp constructor` 
+
+* `init_port_fini` will launch several timers, waiting for the link status of the DPDK device. If the link status is OK, the `_link_ready_promise` of the `dpdk_device` is set to indicate something (we'll find out the result later).
+
 
 
