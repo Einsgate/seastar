@@ -85,7 +85,7 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 * More to come.
 
-## Seastar Network Stack Initialization
+## Seastar Network Device and Queue Initialization
 
 * `void reactor::configure(boost::program_options::variables_map vm)`: At the end of `smp::configure(configuration)`, `engine().configure(configuration)` is called to initialize the network stack. Inside `engine().configure(configuration)` function
 
@@ -101,9 +101,11 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 * `init_local_queue` is a virtual function, the actual implementation is directed to the implementation of `dpdk_device`. A `dpdk_qp` is constructed and then an annoymous function is sent to each CPU. When all the queues are constructed, `init_port_fini` is called to finalize the initilization.
 
-* `dpdk_qp constructor` 
+* `dpdk_qp constructor` sets up the real queues using DPDK api function and sets up some measurement metrics.
 
-* `init_port_fini` will launch several timers, waiting for the link status of the DPDK device. If the link status is OK, the `_link_ready_promise` of the `dpdk_device` is set to indicate something (we'll find out the result later).
+* `init_port_fini` will be called when all the required queues are successfully set up. `init_port_fini` will wait for the link status of the DPDK device. If the link status is OK, the `_link_ready_promise` of the `dpdk_device` is set to indicate that the queues have finishes setting up.
 
+* Ownership: Currently I'm not clear the ownership of the `dpdk_device`. But the `dpdk_qp` is finally owned by an annoymous function stored by the engine(). And `dpdk_qp` is safe to hold a pointer to the `dpdk_device`. 
 
+* Back to `create_native_net_device`, when the annonymous function submitted to each CPU core finishes executing, the function will flip a semaphore. Finally, `create_native_net_device` waits for the `_link_ready_promise` that is set inside `init_port_fini` to become ready. Then `create_native_net_device` starts to create the network stack.
 
