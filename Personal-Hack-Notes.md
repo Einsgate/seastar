@@ -109,3 +109,6 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 * Back to `create_native_net_device`, when the annonymous function submitted to each CPU core finishes executing, the function will flip a semaphore. Finally, `create_native_net_device` waits for the `_link_ready_promise` that is set inside `init_port_fini` to become ready. Then `create_native_net_device` starts to create the network stack.
 
+## Sestar Native Network Stack Initialization
+
+
