@@ -97,7 +97,7 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 * `dpdk::dpdk_device constructor`: The function first calls `dpdk_device::init_port_start` to perform basic hardware based intialization, including setting up the RSS. Then the function initiates some data collectors and measurement metrics. 
 
-* Back to `create_native_net_device`, the created `dpdk_device` pointer is made into a shared pointer, then passed into each CPU core for further execution. On each CPU core, the `init_local_queue` member function of `dpdk_device` pointer is created to create a `qp` (queue provider?).
+* Back to `create_native_net_device`, the created `dpdk_device` pointer is made into a shared pointer, then passed into each CPU core for further execution. On each CPU core, if CPU core index < # of hardware queues, then a `dpdk_qp` is constructed by calling `init_local_queue` member function. The CPU weights are set and the constructed queue are configured as a proxy. Finally, `set_local_queue` is called to set up the `dpdk_qp` pointer inside the `_queue` vector of the `dpdk_device`. If CPU core index >= # of hardware queues, then no `dpdk_qp` is constructed. The CPU core creates a proxy_net_device by calling `create_proxy_net_device`. This is Seastar's software simulation of the RSS functionality so that more CPUs can be used with smaller number of queues. We do not really care about this functionality. 
 
 * `init_local_queue` is a virtual function, the actual implementation is directed to the implementation of `dpdk_device`. A `dpdk_qp` is constructed and then an annoymous function is sent to each CPU. When all the queues are constructed, `init_port_fini` is called to finalize the initilization.
 
