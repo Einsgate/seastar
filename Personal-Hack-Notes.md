@@ -117,4 +117,8 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 * `native_network_stack constructor`: First, construct `interface _netif`, then construct `ipv4 _inet`. Then, if `_dhcp` is not configured, the `ipv4 _inet` will have an IP address.
 
-* `interface _inet constructor`: 
+* `interface _inet constructor`: Store the shared pointer in the `dpdk_device`. Create a `subscription<packet> _rx`, whose listening funciton is actually `dispatch_packet(std::move(p))`, that is called when the `dpdk_qp` receives a packet. Also, For each `dpdk_qp`, the `rx_start()` member function is called when creating the `_rx` for the `_inet`. `rx_start()` added a poller to the reactor. Then the hardware address of the device is set, the hardware feature is also set. Finally, for the `dpdk_qp` associated with the current CPU core, a `packet_provider` is created and pushed into the `_packet_providers` vector of the `qp` base class. (We got to figure out what `_packet_providers` do actually. )
+
+
+
+
