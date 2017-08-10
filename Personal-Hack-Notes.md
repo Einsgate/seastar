@@ -111,4 +111,10 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 ## Sestar Native Network Stack Initialization
 
+* In `native_network_stack::create`, `native_network_stack`'s `ready_promise` is finally returned. The `ready_promise` is a thread local variable in that every thread has one of one `ready_promise`. The Seastar program will wait on the `ready_promise` so that the native network stack is successfully initialized.
 
+* In `create_native_stack`, the `ready_promise` on the CPU core is finally set after constructing a `native_network_stack`.
+
+* `native_network_stack constructor`: First, construct `interface _netif`, then construct `ipv4 _inet`. Then, if `_dhcp` is not configured, the `ipv4 _inet` will have an IP address.
+
+* `interface _inet constructor`: 
