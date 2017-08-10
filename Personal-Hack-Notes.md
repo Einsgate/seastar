@@ -119,7 +119,7 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 * `interface _inet constructor`: Store the shared pointer in the `dpdk_device`. Create a `subscription<packet> _rx`, whose listening funciton is actually `dispatch_packet(std::move(p))`, that is called when the `dpdk_qp` receives a packet. Also, For each `dpdk_qp`, the `rx_start()` member function is called when creating the `_rx` for the `_inet`. `rx_start()` added a poller to the reactor. Then the hardware address of the device is set, the hardware feature is also set. Finally, for the `dpdk_qp` associated with the current CPU core, a `packet_provider` is created and pushed into the `_packet_providers` vector of the `qp` base class. (We got to figure out what `_packet_providers` do actually. )
 
-*
+* `ipv4 _inet constructor`: Hell, this function constructs a lot of things. The most important ones should be a subscription for the produce function that is called by the `qp`. In `_rx_packets`, `handle_received_packet` is called after `dispatch_packet`, then the stream tranfering is over. Before `handle_received_packet` is over, `l4->received` is called. Depending on the l4 protocol, tcp/icmp/udp protocol stack may actually be used. Let's see that the protocol is TCP, then the `tcp<InetTraits>::received` in tcp.hh will finally be called to go over the TCP stack.     
 
 
 
