@@ -121,6 +121,10 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 * `ipv4 _inet constructor`: Hell, this function constructs a lot of things. The most important ones should be a subscription for the produce function that is called by the `qp`. In `_rx_packets`, `handle_received_packet` is called after `dispatch_packet`, then the stream tranfering is over. Before `handle_received_packet` is over, `l4->received` is called. Depending on the l4 protocol, tcp/icmp/udp protocol stack may actually be used. Let's see that the protocol is TCP, then the `tcp<InetTraits>::received` in tcp.hh will finally be called to go over the TCP stack.     
 
+## Seastar Natvie Network Stack UDP Code Analysis
 
+* The UDP part of the Seastar network stack is very close to our NFV definition. We can treat the UDP part as our starting point. I will analyze how the UDP part of Seastar native network stack works, using the test/udp_client.cc and test/udp_server.cc as example.
+
+* Setup: Two Seastar programs, one running test/udp_client.cc, another one running test/udp_server.cc
 
 
