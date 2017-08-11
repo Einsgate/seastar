@@ -136,5 +136,9 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 `native_network_stack::make_udp_channel` ->
 `ipv4_udp::make_channel`->
 `constructor of native_channel in udp.cc` ->
-`constructor of udp_channel`
+`constructor of udp_channel`.
+In particular, in the call of `ipv4_udp::make_channel`, a `udp_channel_state` is created and assigned to a lightweight shared pointer, called `chan_state`. The `chan_state` is put into an `unordered_map` with the corresponding UDP port as the indexing key. The `chan_state` is also passed to the `native_channel`.
+
+3. The call path of when a packet is received:
+
 
