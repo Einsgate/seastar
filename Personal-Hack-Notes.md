@@ -127,4 +127,14 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 
 * Setup: Two Seastar programs, one running test/udp_client.cc, another one running test/udp_server.cc
 
+* The server receive path:
+
+1. Normal system initialization as I have discussed before.
+
+2. The `start` funciton of `client`. First, `start` asks the `native_network_stack` to create a udp channel by calling `engine.net().make_udp_channel()`, the actual call path is:
+`engine.net().make_udp_channel()` ->
+`native_network_stack::make_udp_channel` ->
+`ipv4_udp::make_channel`->
+`constructor of native_channel in udp.cc` ->
+`constructor of udp_channel`
 
