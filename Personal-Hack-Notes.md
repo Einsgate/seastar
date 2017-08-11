@@ -140,5 +140,13 @@ Finally, it constructs obj, moving the first n-1 arguments inside the obj unique
 In particular, in the call of `ipv4_udp::make_channel`, a `udp_channel_state` is created and assigned to a lightweight shared pointer, called `chan_state`. The `chan_state` is put into an `unordered_map` with the corresponding UDP port as the indexing key. The `chan_state` is also passed to the `native_channel`.
 
 3. The call path of when a packet is received:
-
-
+`dpdk_qp<HugetlbfsMemBackend>::poll_rx_once` ->
+`dpdk_qp<HugetlbfsMemBackend>::process_packets` ->
+`dpdk_qp._rx_stream.produce()` ->
+`future<> interface::dispatch_packet(packet p)` ->
+`l3_rx_stream l3.packet_stream.produce(std::move(p), from)` ->
+`future<> ipv4::handle_received_packet(packet p, ethernet_address from)`->
+`l4->received(std::move(ip_data), h.src_ip, h.dst_ip)` (considering UDP, it's actually `ipv4_udp::received`) ->
+`chan->_queue.push(std::move(dgram))` ->
+`queue<udp_datagram>::notify_not_empty()` ->
+`[this] (auto) { n_received++;}` in test/udp_client.cc
