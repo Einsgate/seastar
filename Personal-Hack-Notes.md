@@ -19,6 +19,8 @@ Remove " -Wno-error=literal-suffix -Wno-literal-suffix" in configure.py
 ./congifure --enable-dpdk --compiler=clang-3.9 --ldflags=-lbenchmark --mode=release --cflags=-Wno-deprecated-register
 The added cflags prevents complier from complaining about the "register" keyword when compiling dpdk.
 
+* To use virtio device inside a vm. Add -lrte_pmd_virtio -lrte_net library options to configure.py, along with other dpdk specific library options.
+
 Promise and Future in Seastar
 -----------------------------
 
