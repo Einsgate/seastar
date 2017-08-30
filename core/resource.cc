@@ -237,7 +237,8 @@ allocate_io_queues(hwloc_topology_t& topology, configuration c, std::vector<cpu>
 
 
 resources allocate(configuration c) {
-    hwloc_topology_t topology;
+  printf("It seems that we are in this more complicated version of allocate\n");
+  hwloc_topology_t topology;
     hwloc_topology_init(&topology);
     auto free_hwloc = defer([&] { hwloc_topology_destroy(topology); });
     hwloc_topology_load(topology);
@@ -265,9 +266,12 @@ resources allocate(configuration c) {
     assert(hwloc_get_nbobjs_by_depth(topology, machine_depth) == 1);
     auto machine = hwloc_get_obj_by_depth(topology, machine_depth, 0);
     auto available_memory = machine->memory.total_memory;
+    std::cout<<"available_memory: "<<available_memory<<std::endl;
     size_t mem = calculate_memory(c, available_memory);
+    printf("Calculated mem: %zu\n", mem);
     unsigned available_procs = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
     unsigned procs = c.cpus.value_or(available_procs);
+    printf("procs: %d, available_procs: %d\n", procs, available_procs);
     if (procs > available_procs) {
         throw std::runtime_error("insufficient processing units");
     }
@@ -360,6 +364,7 @@ resources allocate(configuration c) {
     resources ret;
 
     auto available_memory = ::sysconf(_SC_PAGESIZE) * size_t(::sysconf(_SC_PHYS_PAGES));
+    printf("Available memory: %zu\n", available_memory);
     auto mem = calculate_memory(c, available_memory);
     auto cpuset_procs = c.cpu_set ? c.cpu_set->size() : nr_processing_units();
     auto procs = c.cpus.value_or(cpuset_procs);

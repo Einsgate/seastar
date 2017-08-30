@@ -3299,6 +3299,7 @@ network_stack_registrator::network_stack_registrator(sstring name,
         boost::program_options::options_description opts,
         std::function<future<std::unique_ptr<network_stack>>(options opts)> factory,
         bool make_default) {
+    printf("Registering stack \n");
     network_stack_registry::register_stack(name, opts, factory, make_default);
 }
 
@@ -3510,9 +3511,12 @@ void smp::configure(boost::program_options::variables_map configuration)
 
     install_oneshot_signal_handler<SIGSEGV, sigsegv_action>();
     install_oneshot_signal_handler<SIGABRT, sigabrt_action>();
-
+    printf("Install signal handlers\n");
+    
 #ifdef HAVE_DPDK
     _using_dpdk = configuration.count("dpdk-pmd");
+    if(_using_dpdk)
+      printf("We are using DPDK PMD\n");
 #endif
     auto thread_affinity = configuration["thread-affinity"].as<bool>();
     if (configuration.count("overprovisioned")
@@ -3525,7 +3529,11 @@ void smp::configure(boost::program_options::variables_map configuration)
 
     smp::count = 1;
     smp::_tmain = std::this_thread::get_id();
+    std::cout<<"The main thread id is "<<smp::_tmain<<std::endl;
     auto nr_cpus = resource::nr_processing_units();
+    printf("Number of the CPUs on this machine is %d\n", nr_cpus);
+
+    
     resource::cpuset cpu_set;
     std::copy(boost::counting_iterator<unsigned>(0), boost::counting_iterator<unsigned>(nr_cpus),
             std::inserter(cpu_set, cpu_set.end()));
@@ -3541,7 +3549,7 @@ void smp::configure(boost::program_options::variables_map configuration)
     _reactors.resize(nr_cpus);
     resource::configuration rc;
     if (configuration.count("memory")) {
-        rc.total_memory = parse_memory_size(configuration["memory"].as<std::string>());
+      rc.total_memory = parse_memory_size(configuration["memory"].as<std::string>());
 #ifdef HAVE_DPDK
         if (configuration.count("hugepages") &&
             !configuration["network-stack"].as<std::string>().compare("native") &&
@@ -3592,11 +3600,35 @@ void smp::configure(boost::program_options::variables_map configuration)
         rc.io_queues = configuration["num-io-queues"].as<unsigned>();
     }
 
+    printf("wtf??\n");
     auto resources = resource::allocate(rc);
+    printf("wtf..\n");
+    for(auto&& cpu_instance : resources.cpus){
+      printf("CPU id: %d\n", cpu_instance.cpu_id);
+      int i=0;
+      for(auto&& mem_instance : cpu_instance.mem){
+	// printf("The %dth memory size in bytes: %zu, nodeid: %d\n", mem_instance.bytes, mem_instance.nodeid);
+	std::cout<<"The "<<i<<"th memory size in bytes: "<<mem_instance.bytes<<", nodeid: "<<mem_instance.nodeid<<std::endl;
+	i++;
+      }
+    }
+    printf("io queues\n");
+      for(auto&& item : resources.io_queues.shard_to_coordinator){
+	printf("%d ", item);
+      }
+      printf("\n");
+      for(auto&& item : resources.io_queues.coordinators){
+	std::cout<<item.id<<","<<item.capacity<<" ";
+      }
+      printf("\n");
+   
+    
     std::vector<resource::cpu> allocations = std::move(resources.cpus);
     if (thread_affinity) {
+      printf("Pinning the master(first) thread\n");
         smp::pin(allocations[0].cpu_id);
     }
+    printf("Configure memory for the master(first) thread\n");
     memory::configure(allocations[0].mem, hugepages_path);
 
     if (configuration.count("abort-on-seastar-bad-alloc")) {
