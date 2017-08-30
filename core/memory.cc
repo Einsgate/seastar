@@ -854,6 +854,8 @@ bool cpu_pages::initialize() {
     if (is_initialized()) {
         return false;
     }
+    // printf("cpu_pages::initialize() is called\n");
+    // std::cout<<"cpu_pages initialize is called"<<std::endl;
     cpu_id = cpu_id_gen.fetch_add(1, std::memory_order_relaxed);
     assert(cpu_id < max_cpus);
     all_cpus[cpu_id] = this;
@@ -987,11 +989,16 @@ void cpu_pages::do_resize(size_t new_size, allocate_system_memory_fn alloc_sys_m
 
 void cpu_pages::resize(size_t new_size, allocate_system_memory_fn alloc_memory) {
     new_size = align_down(new_size, huge_page_size);
+    std::cout<<"huge_page_size:"<<huge_page_size<<std::endl;
+    std::cout<<"new_size:"<<new_size<<std::endl;
+    std::cout<<"nr_pages:"<<nr_pages<<std::endl;
+    std::cout<<"page_size:"<<page_size<<std::endl;
     while (nr_pages * page_size < new_size) {
         // don't reallocate all at once, since there might not
         // be enough free memory available to relocate the pages array
         auto tmp_size = std::min(new_size, 4 * nr_pages * page_size);
-        do_resize(tmp_size, alloc_memory);
+	std::cout<<"tmp_size:"<<tmp_size<<std::endl;
+	do_resize(tmp_size, alloc_memory);
     }
 }
 
@@ -1276,7 +1283,9 @@ void configure(std::vector<resource::memory> m,
         total += x.bytes;
     }
     allocate_system_memory_fn sys_alloc = allocate_anonymous_memory;
+    printf("hugetlbfs_path is not set\n");
     if (hugetlbfs_path) {
+      printf("I should not be printed\n");
         // std::function is copyable, but file_desc is not, so we must use
         // a shared_ptr to allow sys_alloc to be copied around
         auto fdp = make_lw_shared<file_desc>(file_desc::temporary(*hugetlbfs_path));
