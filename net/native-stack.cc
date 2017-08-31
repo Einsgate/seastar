@@ -152,7 +152,7 @@ public:
     virtual udp_channel make_udp_channel(ipv4_addr addr) override;
     virtual future<> initialize() override;
     static future<std::unique_ptr<network_stack>> create(boost::program_options::variables_map opts) {
-        printf("Thread %d: Start creating the native network stack\n");
+        printf("Thread %d: Start creating the native network stack\n", engine().cpu_id());
         if (engine().cpu_id() == 0) {
             create_native_net_device(opts);
         }
