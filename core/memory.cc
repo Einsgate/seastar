@@ -997,8 +997,8 @@ void cpu_pages::resize(size_t new_size, allocate_system_memory_fn alloc_memory) 
         // don't reallocate all at once, since there might not
         // be enough free memory available to relocate the pages array
         auto tmp_size = std::min(new_size, 4 * nr_pages * page_size);
-	std::cout<<"tmp_size:"<<tmp_size<<std::endl;
-	do_resize(tmp_size, alloc_memory);
+        std::cout<<"tmp_size:"<<tmp_size<<std::endl;
+        do_resize(tmp_size, alloc_memory);
     }
 }
 
@@ -1285,7 +1285,7 @@ void configure(std::vector<resource::memory> m,
     allocate_system_memory_fn sys_alloc = allocate_anonymous_memory;
     printf("hugetlbfs_path is not set\n");
     if (hugetlbfs_path) {
-      printf("I should not be printed\n");
+        printf("I should not be printed\n");
         // std::function is copyable, but file_desc is not, so we must use
         // a shared_ptr to allow sys_alloc to be copied around
         auto fdp = make_lw_shared<file_desc>(file_desc::temporary(*hugetlbfs_path));

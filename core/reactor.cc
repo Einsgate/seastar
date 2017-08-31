@@ -338,7 +338,7 @@ reactor::reactor(unsigned id)
     , _reuseport(posix_reuseport_detect())
     , _task_quota_timer_thread(&reactor::task_quota_timer_thread_fn, this)
     , _thread_pool(seastar::format("syscall-{}", id)) {
-
+    printf("Thread %d: Start constructing the reactor\n", id);
     seastar::thread_impl::init();
     auto r = ::io_setup(max_aio, &_io_context);
     assert(r >= 0);
@@ -3516,7 +3516,7 @@ void smp::configure(boost::program_options::variables_map configuration)
 #ifdef HAVE_DPDK
     _using_dpdk = configuration.count("dpdk-pmd");
     if(_using_dpdk)
-      printf("We are using DPDK PMD\n");
+        printf("We are using DPDK PMD\n");
 #endif
     auto thread_affinity = configuration["thread-affinity"].as<bool>();
     if (configuration.count("overprovisioned")
@@ -3600,32 +3600,29 @@ void smp::configure(boost::program_options::variables_map configuration)
         rc.io_queues = configuration["num-io-queues"].as<unsigned>();
     }
 
-    printf("wtf??\n");
     auto resources = resource::allocate(rc);
-    printf("wtf..\n");
     for(auto&& cpu_instance : resources.cpus){
-      printf("CPU id: %d\n", cpu_instance.cpu_id);
-      int i=0;
-      for(auto&& mem_instance : cpu_instance.mem){
-	// printf("The %dth memory size in bytes: %zu, nodeid: %d\n", mem_instance.bytes, mem_instance.nodeid);
-	std::cout<<"The "<<i<<"th memory size in bytes: "<<mem_instance.bytes<<", nodeid: "<<mem_instance.nodeid<<std::endl;
-	i++;
-      }
+        printf("CPU id: %d\n", cpu_instance.cpu_id);
+    	int i=0;
+    	for(auto&& mem_instance : cpu_instance.mem){
+    	    // printf("The %dth memory size in bytes: %zu, nodeid: %d\n", mem_instance.bytes, mem_instance.nodeid);
+    	    std::cout<<"The "<<i<<"th memory size in bytes: "<<mem_instance.bytes<<", nodeid: "<<mem_instance.nodeid<<std::endl;
+    	    i++;
+    	}
     }
     printf("io queues\n");
-      for(auto&& item : resources.io_queues.shard_to_coordinator){
-	printf("%d ", item);
-      }
-      printf("\n");
-      for(auto&& item : resources.io_queues.coordinators){
-	std::cout<<item.id<<","<<item.capacity<<" ";
-      }
-      printf("\n");
-   
+    for(auto&& item : resources.io_queues.shard_to_coordinator){
+        printf("%d ", item);
+    }
+    printf("\n");
+    for(auto&& item : resources.io_queues.coordinators){
+        std::cout<<item.id<<","<<item.capacity<<" ";
+    }
+    printf("\n");
     
     std::vector<resource::cpu> allocations = std::move(resources.cpus);
     if (thread_affinity) {
-      printf("Pinning the master(first) thread\n");
+    	printf("Pinning the master(first) thread\n");
         smp::pin(allocations[0].cpu_id);
     }
     printf("Configure memory for the master(first) thread\n");
@@ -3690,6 +3687,7 @@ void smp::configure(boost::program_options::variables_map configuration)
     for (i = 1; i < smp::count; i++) {
         auto allocation = allocations[i];
         create_thread([configuration, hugepages_path, i, allocation, assign_io_queue, alloc_io_queue, thread_affinity, heapprof_enabled] {
+            printf("On thread count %d: start to create the thread\n", i);
             auto thread_name = seastar::format("reactor-{}", i);
             pthread_setname_np(pthread_self(), thread_name.c_str());
             if (thread_affinity) {
