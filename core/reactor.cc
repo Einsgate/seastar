@@ -3707,9 +3707,11 @@ void smp::configure(boost::program_options::variables_map configuration)
             auto queue_idx = alloc_io_queue(i);
             reactors_registered.wait();
             smp_queues_constructed.wait();
+            printf("Thread %d: start setting up smp queues and io queue\n", i);
             start_all_queues();
             assign_io_queue(i, queue_idx);
             inited.wait();
+            printf("Thread %d: start engine configuration, especially for the network stack\n", i);
             engine().configure(configuration);
             engine().run();
         });
@@ -3738,10 +3740,12 @@ void smp::configure(boost::program_options::variables_map configuration)
         }
     }
     smp_queues_constructed.wait();
+    printf("Thread 0: start setting up smp queues and io queue\n");
     start_all_queues();
     assign_io_queue(0, queue_idx);
     inited.wait();
 
+    printf("Thread 0: start engine configuration, especially for the network stack\n");
     engine().configure(configuration);
     engine()._lowres_clock = std::make_unique<lowres_clock>();
 }
