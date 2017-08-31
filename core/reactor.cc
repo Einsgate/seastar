@@ -3732,6 +3732,8 @@ void smp::configure(boost::program_options::variables_map configuration)
     printf("Thread 0: start setting up the qs\n");
 
 
+
+
     smp::_qs = new smp_message_queue* [smp::count];
     for(unsigned i = 0; i < smp::count; i++) {
         smp::_qs[i] = reinterpret_cast<smp_message_queue*>(operator new[] (sizeof(smp_message_queue) * smp::count));
