@@ -75,6 +75,7 @@ static xen_info is_xen()
 #endif
 
 void create_native_net_device(boost::program_options::variables_map opts) {
+    printf("Thread %d: constructing the native-network device\n", engine().cpu_id());
     std::unique_ptr<device> dev;
 
 #ifdef HAVE_XEN
