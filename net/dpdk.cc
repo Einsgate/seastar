@@ -1687,6 +1687,15 @@ int dpdk_device::init_port_start()
     //rte_eth_promiscuous_enable(port_num);
     printf("done: \n");
 
+    printf("hw_features.tx_csum_ip_offload: %d\n", _hw_features.tx_csum_ip_offload);
+    printf("hw_features.tx_csum_l4_offload: %d\n", _hw_features.tx_csum_l4_offload);
+    printf("hw_features.rx_csum_offload: %d\n", _hw_features.rx_csum_offload);
+    printf("hw_features.rx_lro: %d\n", _hw_features.rx_lro);
+    printf("hw_features.tx_tso: %d\n", _hw_features.tx_tso);
+    printf("hw_features.tx_ufo: %d\n", _hw_features.tx_ufo);
+    printf("hw_features.mtu: %d\n", _hw_features.mtu);
+    printf("hw_features.max_packet_len: %d\n", _hw_features.max_packet_len);
+
     return 0;
 }
 
