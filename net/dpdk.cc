@@ -1473,7 +1473,7 @@ int dpdk_device::init_port_start()
     assert(_port_idx < rte_eth_dev_count());
 
     rte_eth_dev_info_get(_port_idx, &_dev_info);
-
+    printf("Device is an %s\n", _dev_info.driver_name);
     //
     // This is a workaround for a missing handling of a HW limitation in the
     // DPDK i40e driver. This and all related to _is_i40e_device code should be
