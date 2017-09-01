@@ -1934,6 +1934,7 @@ dpdk_qp<HugetlbfsMemBackend>::dpdk_qp(dpdk_device* dev, uint8_t qid,
        _tx_buf_factory(qid),
        _tx_gc_poller(reactor::poller::simple([&] { return _tx_buf_factory.gc(); }))
 {
+    printf("Thread %d: Constructing dpdk_qp for queue %d\n", engine().cpu_id(), qid);
     if (!init_rx_mbuf_pool()) {
         rte_exit(EXIT_FAILURE, "Cannot initialize mbuf pools\n");
     }
