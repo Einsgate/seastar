@@ -104,6 +104,7 @@ void create_native_net_device(boost::program_options::variables_map opts) {
             printf("Thread %d: prepare to set up the queue for the dpdk device. \n", engine().cpu_id());
             uint16_t qid = engine().cpu_id();
             if (qid < sdev->hw_queues_count()) {
+                printf("Thread %d: queue id is smaller than hw_queues_count \n", engine().cpu_id());
                 auto qp = sdev->init_local_queue(opts, qid);
                 std::map<unsigned, float> cpu_weights;
                 for (unsigned i = sdev->hw_queues_count() + qid % sdev->hw_queues_count(); i < smp::count; i+= sdev->hw_queues_count()) {
