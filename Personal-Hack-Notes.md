@@ -152,3 +152,9 @@ In particular, in the call of `ipv4_udp::make_channel`, a `udp_channel_state` is
 `chan->_queue.push(std::move(dgram))` ->
 `queue<udp_datagram>::notify_not_empty()` ->
 `[this] (auto) { n_received++;}` in test/udp_client.cc
+
+# NAT and connection tracking
+
+* Refer to https://people.netfilter.org/pablo/docs/login.pdf this artical for a simple explanation of linux netfilter connection tracking.
+
+* OVS now support connection tracking to, they are in lib/conntrack*
