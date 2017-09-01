@@ -101,6 +101,7 @@ void create_native_net_device(boost::program_options::variables_map opts) {
     printf("Thread %d: Creating a shared pointer for the dpdk_device.\n", engine().cpu_id());
     for (unsigned i = 0; i < smp::count; i++) {
         smp::submit_to(i, [opts, sdev] {
+            printf("Thread %d: prepare to set up the queue for the dpdk device. \n", engine().cpu_id());
             uint16_t qid = engine().cpu_id();
             if (qid < sdev->hw_queues_count()) {
                 auto qp = sdev->init_local_queue(opts, qid);
