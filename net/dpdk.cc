@@ -2273,6 +2273,10 @@ std::unique_ptr<net::device> create_dpdk_net_device(
         printf("ports number: %d\n", rte_eth_dev_count());
     }
 
+    printf("Thread %d: Create a dpdk_device. Physical port id %d, queue number %d. \n",
+            engine().cpu_id(), port_idx, num_queues);
+    printf("Thread %d: Unfortunately, Seastar only supports a single dpdk_device.\n");
+
     return std::make_unique<dpdk::dpdk_device>(port_idx, num_queues, use_lro,
                                                enable_fc);
 }
