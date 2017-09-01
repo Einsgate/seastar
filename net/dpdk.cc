@@ -1606,6 +1606,8 @@ int dpdk_device::init_port_start()
 
 #ifdef RTE_ETHDEV_HAS_LRO_SUPPORT
     // Enable LRO
+    if(_use_lro)
+        printf("_use_lro is true\n");
     if (_use_lro && (_dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TCP_LRO)) {
         printf("LRO is on\n");
         port_conf.rxmode.enable_lro = 1;
