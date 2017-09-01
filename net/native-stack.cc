@@ -98,6 +98,7 @@ void create_native_net_device(boost::program_options::variables_map opts) {
 
     auto sem = std::make_shared<semaphore>(0);
     std::shared_ptr<device> sdev(dev.release());
+    printf("Thread %d: Creating a shared pointer for the dpdk_device.\n", engine().cpu_id());
     for (unsigned i = 0; i < smp::count; i++) {
         smp::submit_to(i, [opts, sdev] {
             uint16_t qid = engine().cpu_id();
