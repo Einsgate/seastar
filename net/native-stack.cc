@@ -301,6 +301,7 @@ void arp_learn(ethernet_address l2, ipv4_address l3)
 
 void create_native_stack(boost::program_options::variables_map opts, std::shared_ptr<device> dev) {
     native_network_stack::ready_promise.set_value(std::unique_ptr<network_stack>(std::make_unique<native_network_stack>(opts, std::move(dev))));
+    printf("Thread %d: native_network_stack::ready_promise is set\n", engine().cpu_id());
 }
 
 boost::program_options::options_description nns_options() {
