@@ -1898,7 +1898,7 @@ void dpdk_device::check_port_link_status()
     int count = 0;
     constexpr auto check_interval = 100ms;
 
-    std::cout << "\nChecking link status from "<<engine().cpu_id()<< std::endl;
+    std::cout << "\nChecking link status from thread "<<engine().cpu_id()<< std::endl;
     auto t = new timer<>;
     t->set_callback([this, count, t] () mutable {
         const int max_check_time = 90;  /* 9s (90 * 100ms) in total */

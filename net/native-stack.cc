@@ -123,6 +123,7 @@ void create_native_net_device(boost::program_options::variables_map opts) {
     }
     sem->wait(smp::count).then([opts, sdev] {
         sdev->link_ready().then([opts, sdev] {
+            printf("Thread %d: _link_ready_promise is set, start to create the native stack\n", engine().cpu_id());
             for (unsigned i = 0; i < smp::count; i++) {
                 smp::submit_to(i, [opts, sdev] {
                     create_native_stack(opts, sdev);
