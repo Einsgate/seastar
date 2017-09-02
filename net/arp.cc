@@ -39,6 +39,7 @@ arp::arp(interface* netif) : _netif(netif), _proto(netif, eth_protocol_num::arp,
     [this](forward_hash& out_hash_data, packet& p, size_t off) {
         return forward(out_hash_data, p, off);
     })) {
+    printf("Thread %d: constructing arp\n", engine().cpu_id());
 }
 
 std::experimental::optional<l3_protocol::l3packet> arp::get_packet() {
