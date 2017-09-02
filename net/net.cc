@@ -268,6 +268,7 @@ interface::register_l3(eth_protocol_num proto_num,
     auto i = _proto_map.emplace(std::piecewise_construct, std::make_tuple(uint16_t(proto_num)), std::forward_as_tuple(std::move(forward)));
     assert(i.second);
     l3_rx_stream& l3_rx = i.first->second;
+    printf("Thread %d: the listen function for l3 rx stream is set to handle_received_packet\n", engine().cpu_id());
     return l3_rx.packet_stream.listen(std::move(next));
 }
 

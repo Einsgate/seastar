@@ -1982,6 +1982,7 @@ dpdk_qp<HugetlbfsMemBackend>::dpdk_qp(dpdk_device* dev, uint8_t qid,
 
 template <bool HugetlbfsMemBackend>
 void dpdk_qp<HugetlbfsMemBackend>::rx_start() {
+    printf("Thread %d: dpdk_qp::rx_start is called. A poller is constructed with poll_rx_once() as polling function\n", engine().cpu_id());
     _rx_poller = reactor::poller::simple([&] { return poll_rx_once(); });
 }
 
