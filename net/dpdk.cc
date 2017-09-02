@@ -1728,7 +1728,7 @@ void dpdk_device::set_hw_flow_control()
         rte_exit(EXIT_FAILURE, "Port %u: failed to set hardware flow control (error %d)\n", _port_idx, ret);
     }
 
-    printf("Port %u: %s HW FC\n", _port_idx,
+    printf("Thread %d: Port %u: %s HW FC\n", engine().cpu_id(), _port_idx,
                                   (_enable_fc ? "Enabling" : "Disabling"));
     return;
 
@@ -1741,9 +1741,11 @@ void dpdk_device::init_port_fini()
     // Changing FC requires HW reset, so set it before the port is initialized.
     set_hw_flow_control();
 
+    printf("Thread %d: Before rte_eth_dev_start\n", engine().cpu_id());
     if (rte_eth_dev_start(_port_idx) < 0) {
         rte_exit(EXIT_FAILURE, "Cannot start port %d\n", _port_idx);
     }
+    printf("Thread %d: After rte_eth_dev_start\n", engine().cpu_id());
 
     if (_num_queues > 1) {
         if (!rte_eth_dev_filter_supported(_port_idx, RTE_ETH_FILTER_HASH)) {
@@ -1762,6 +1764,7 @@ void dpdk_device::init_port_fini()
         }
 
         set_rss_table();
+        printf("Thread %d: Finish setting up the rss table\n", engine().cpu_id());
     }
 
     // Wait for a link
@@ -1895,7 +1898,7 @@ void dpdk_device::check_port_link_status()
     int count = 0;
     constexpr auto check_interval = 100ms;
 
-    std::cout << "\nChecking link status " << std::endl;
+    std::cout << "\nChecking link status from "<<engine().cpu_id()<< std::endl;
     auto t = new timer<>;
     t->set_callback([this, count, t] () mutable {
         const int max_check_time = 90;  /* 9s (90 * 100ms) in total */
@@ -1910,6 +1913,7 @@ void dpdk_device::check_port_link_status()
                 " Mbps - " << ((link.link_duplex == ETH_LINK_FULL_DUPLEX) ?
                           ("full-duplex") : ("half-duplex\n")) <<
                 std::endl;
+            printf("Thread %d: _link_ready_promise is set\n", engine().cpu_id());
             _link_ready_promise.set_value();
 
             // We may start collecting statistics only after the Link is UP.
