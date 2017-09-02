@@ -1139,8 +1139,8 @@ build_mbuf_cluster:
             using namespace memory;
 
             sstring name = sstring(pktmbuf_pool_name) + to_sstring(qid) + "_tx";
-            printf("Creating Tx mbuf pool '%s' [%u mbufs] ...\n",
-                   name.c_str(), mbufs_per_queue_tx);
+            printf("Thread %d: Creating Tx mbuf pool '%s' [%u mbufs] ...\n",
+                   engine().cpu_id(), name.c_str(), mbufs_per_queue_tx);
            
             if (HugetlbfsMemBackend) {
                 std::vector<phys_addr_t> mappings;
@@ -1809,8 +1809,8 @@ bool dpdk_qp<HugetlbfsMemBackend>::init_rx_mbuf_pool()
     using namespace memory;
     sstring name = sstring(pktmbuf_pool_name) + to_sstring(_qid) + "_rx";
 
-    printf("Creating Rx mbuf pool '%s' [%u mbufs] ...\n",
-           name.c_str(), mbufs_per_queue_rx);
+    printf("Thread %d: Creating Rx mbuf pool '%s' [%u mbufs] ...\n",
+           engine().cpu_id(), name.c_str(), mbufs_per_queue_rx);
 
     //
     // If we have a hugetlbfs memory backend we may perform a virt2phys
