@@ -592,6 +592,7 @@ void reactor::configure(boost::program_options::variables_map vm) {
         ? network_stack_registry::create(sstring(vm["network-stack"].as<std::string>()), vm)
         : network_stack_registry::create(vm);
     network_stack_ready.then([this] (std::unique_ptr<network_stack> stack) {
+        printf("Thread %d: _network_stack_ready_promise is set\n", engine().cpu_id());
         _network_stack_ready_promise.set_value(std::move(stack));
     });
 
