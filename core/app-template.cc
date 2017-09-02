@@ -122,11 +122,13 @@ app_template::run_deprecated(int ac, char ** av, std::function<void ()>&& func) 
     smp::configure(configuration);
     _configuration = {std::move(configuration)};
     engine().when_started().then([this] {
+        printf("Thread %d: when_started() is called", engine().cpu_id());
         seastar::metrics::configure(this->configuration()).then([this] {
             // set scollectd use the metrics configuration, so the later
             // need to be set first
             scollectd::configure( this->configuration());
         });
+        printf("Thread %d: It seems that an exception is thrown in this stage\n", engine().cpu_id());
     }).then(
         std::move(func)
     ).then_wrapped([] (auto&& f) {
