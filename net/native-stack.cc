@@ -196,6 +196,7 @@ add_native_net_options_description(boost::program_options::options_description &
 native_network_stack::native_network_stack(boost::program_options::variables_map opts, std::shared_ptr<device> dev)
     : _netif(std::move(dev))
     , _inet(&_netif) {
+    printf("Thread %d: Constructing the native_network_stack\n", engine().cpu_id());
     _inet.get_udp().set_queue_size(opts["udpv4-queue-size"].as<int>());
     _dhcp = opts["host-ipv4-addr"].defaulted()
             && opts["gw-ipv4-addr"].defaulted()
