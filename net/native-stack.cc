@@ -278,6 +278,7 @@ future<> native_network_stack::initialize() {
     return network_stack::initialize().then([this]() {
         printf("Thread %d: native_network_stack::initialize() is called\n", engine().cpu_id());
         if (!_dhcp) {
+            printf("Thread %d: a ready future is directed returned after native_network_stack::initialize\n", engine().cpu_id());
             return make_ready_future();
         }
 
