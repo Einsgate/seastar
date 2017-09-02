@@ -210,6 +210,7 @@ void qp::build_sw_reta(const std::map<unsigned, float>& cpu_weights) {
 
 subscription<packet>
 device::receive(std::function<future<> (packet)> next_packet) {
+    printf("Thread %d: device::receive is called to add a listen function to the qp's _rx_stream\n", engine().cpu_id());
     auto sub = _queues[engine().cpu_id()]->_rx_stream.listen(std::move(next_packet));
     _queues[engine().cpu_id()]->rx_start();
     return std::move(sub);
@@ -238,6 +239,7 @@ interface::interface(std::shared_ptr<device> dev)
     , _rx(_dev->receive([this] (packet p) { return dispatch_packet(std::move(p)); }))
     , _hw_address(_dev->hw_address())
     , _hw_features(_dev->hw_features()) {
+    printf("Thread %d: Construct interface, register_packet_provider is called for local_queue\n", engine().cpu_id());
     dev->local_queue().register_packet_provider([this, idx = 0u] () mutable {
             std::experimental::optional<packet> p;
             for (size_t i = 0; i < _pkt_providers.size(); i++) {
