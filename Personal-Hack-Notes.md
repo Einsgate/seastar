@@ -153,8 +153,12 @@ In particular, in the call of `ipv4_udp::make_channel`, a `udp_channel_state` is
 `queue<udp_datagram>::notify_not_empty()` ->
 `[this] (auto) { n_received++;}` in test/udp_client.cc
 
-# NAT and connection tracking
+## NAT and connection tracking
 
 * Refer to https://people.netfilter.org/pablo/docs/login.pdf this artical for a simple explanation of linux netfilter connection tracking.
 
 * OVS now support connection tracking to, they are in lib/conntrack*
+
+## udp_client start up exception
+
+* To correctly start udp_client, we have to add --server ip program option to udp_client binary. However, if there are no udp_server, udp_client generates tons of uncaught exceptions which are arp_queue_full_error. Got to figure out the cause.
