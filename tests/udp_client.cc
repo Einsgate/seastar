@@ -81,6 +81,7 @@ int main(int ac, char ** av) {
     return app.run_deprecated(ac, av, [&_client, &app] {
         printf("App code: Inside udo_client\n");
         auto&& config = app.configuration();
+        printf("App code: acquire the app configuration\n");
         _client.start(config["server"].as<std::string>());
     });
 }

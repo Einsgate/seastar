@@ -128,7 +128,7 @@ app_template::run_deprecated(int ac, char ** av, std::function<void ()>&& func) 
             // need to be set first
             scollectd::configure( this->configuration());
         });
-        printf("Thread %d: It seems that an exception is thrown in this stage\n", engine().cpu_id());
+        printf("Thread %d: It seems that an exception is not thrown in this stage\n", engine().cpu_id());
     }).then(
         std::move(func)
     ).then_wrapped([] (auto&& f) {
