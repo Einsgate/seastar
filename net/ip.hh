@@ -55,7 +55,7 @@ class tcp;
 
 struct ipv4_address {
     ipv4_address() : ip(0) {}
-    explicit ipv4_address(uint32_t ip) : ip(ip) {}
+    explicit ipv4_address(uint32_t ip) : ip(ip) {printf("Thread %d: constructing ipv4_address\n", engine().cpu_id());}
     explicit ipv4_address(const std::string& addr) {
         boost::system::error_code ec;
         auto ipv4 = boost::asio::ip::address_v4::from_string(addr, ec);
