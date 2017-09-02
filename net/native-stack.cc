@@ -202,10 +202,12 @@ native_network_stack::native_network_stack(boost::program_options::variables_map
             && opts["gw-ipv4-addr"].defaulted()
             && opts["netmask-ipv4-addr"].defaulted() && opts["dhcp"].as<bool>();
     if (!_dhcp) {
+        printf("Thread %d: dhcp is not set, set some default value for _net\n", engine().cpu_id());
         _inet.set_host_address(ipv4_address(_dhcp ? 0 : opts["host-ipv4-addr"].as<std::string>()));
         _inet.set_gw_address(ipv4_address(opts["gw-ipv4-addr"].as<std::string>()));
         _inet.set_netmask_address(ipv4_address(opts["netmask-ipv4-addr"].as<std::string>()));
     }
+    printf("Thread %d: finish constructing native_network_stack\n", engine().cpu_id());
 }
 
 server_socket
