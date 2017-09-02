@@ -2687,6 +2687,7 @@ int reactor::run() {
     }
 
     _cpu_started.wait(smp::count).then([this] {
+        printf("Thread %d: reactor::_cpu_started is set, start to initialize the _network_stack\n", engine().cpu_id());
         _network_stack->initialize().then([this] {
             _start_promise.set_value();
         });
