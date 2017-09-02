@@ -2692,6 +2692,7 @@ int reactor::run() {
         });
     });
     _network_stack_ready_promise.get_future().then([this] (std::unique_ptr<network_stack> stack) {
+        printf("Thread %d: Sending out _cpu_started.signal() to each CPU core\n", engine().cpu_id());
         _network_stack = std::move(stack);
         for (unsigned c = 0; c < smp::count; c++) {
             smp::submit_to(c, [] {
