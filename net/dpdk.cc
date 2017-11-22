@@ -2283,12 +2283,17 @@ std::unique_ptr<net::device> create_dpdk_net_device(
                                     bool use_lro,
                                     bool enable_fc)
 {
-    static bool called = false;
+    /*
+     * patch by djp
+     * remove the called assertion check, so that
+     * we can create multiple dpdk_net_device
+     */
+    // static bool called = false;
 
-    assert(!called);
+    // assert(!called);
     assert(dpdk::eal::initialized);
 
-    called = true;
+    // called = true;
 
     // Check that we have at least one DPDK-able port
     if (rte_eth_dev_count() == 0) {

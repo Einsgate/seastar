@@ -30,176 +30,50 @@
 #include "netstar/extendable_buffer.hh"
 #include "netstar/stack_port.hh"
 #include "netstar/port_env.hh"
-#include "netstar/async_flow.hh"
+#include "netstar/tcp_monitoring_flow.hh"
 
 using namespace seastar;
 using namespace netstar;
+using namespace std::chrono_literals;
 
-/*class l2_processing{
-    port& _in_port;
-    port& _out_port;
-
-    stream<net::packet> _arp_pkt_stream;
-    stream<net::packet> _ipv4_pkt_stream;
+class tester{
+    lw_shared_ptr<tcp_monitor> _monitor;
 public:
-    explicit l2_processing(port& in_port, port& out_port) :
-    _in_port(in_port), _out_port(out_port) {}
-
-    void enable_l2_in(){
-        _in_port.receive([this](net::packet pkt){
-            auto eh = pkt.get_header<net::eth_hdr>();
-            if(eh){
-                auto eh_proto = net::ntoh(eh->eth_proto);
-
-                switch(static_cast<net::eth_protocol_num>(eh_proto)){
-                case net::eth_protocol_num::arp: {
-                    _arp_pkt_stream.produce(std::move(pkt));
-                    return make_ready_future<>();
-                }
-                case net::eth_protocol_num::ipv4 : {
-                    _ipv4_pkt_stream.produce(std::move(pkt));
-                    return make_ready_future<>();
-                }
-                default :{
-                    return make_ready_future<>();
-                }
-                }
-            }
-            return make_ready_future<>();
-        });
+    tester(lw_shared_ptr<tcp_monitor> monitor)
+        : _monitor(std::move(monitor)){
     }
 
-    future<> l2_out(net::packet pkt){
-        return _out_port.send(std::move(pkt));
-    }
-
-    subscription<net::packet> start_arp_stream(std::function<future<>(net::packet)> fn){
-        return _arp_pkt_stream.listen(std::move(fn));
-    }
-
-    subscription<net::packet> start_ipv4_stream(std::function<future<>(net::packet)> fn){
-        return _ipv4_pkt_stream.listen(std::move(fn));
-    }
-};
-
-class l3_arp_processing {
-    l2_processing& _l2;
-    subscription<net::packet> _arp_pkt_sub;
-
-private:
-    struct arp_hdr {
-        uint16_t htype;
-        uint16_t ptype;
-
-        static arp_hdr read(const char* p) {
-            arp_hdr ah;
-            ah.htype = consume_be<uint16_t>(p);
-            ah.ptype = consume_be<uint16_t>(p);
-            return ah;
-        }
-        static constexpr size_t size() { return 4; }
-    };
-
-public:
-    explicit l3_arp_processing(l2_processing& l2) : _l2(l2),
-        _arp_pkt_sub(l2.start_arp_stream([this](net::packet pkt){
-            auto arp_h = pkt.get_header<arp_hdr>(sizeof(net::eth_hdr));
-            if (!arp_h) {
+    future<> run(){
+        return _monitor->on_new_packet().then([this]{
+            printf("Monitor receives packet\n");
+            _monitor->read_packet();
+            if(_monitor->is_impl_ended()){
                 return make_ready_future<>();
             }
             else{
-                // arp pass through
-                _l2.l2_out(std::move(pkt));
-                return make_ready_future<>();
+                return run();
             }
-        })){
-    }
-};*/
-
-class pipeline {
-    port& _in_port;
-    port& _out_port;
-
-    explicit pipeline(port& in_port, port& out_port) :
-            _in_port(in_port), _out_port(out_port) {
-        _in_port.receive([this](net::packet pkt){
-            eth_in(std::move(pkt));
-            return make_ready_future<>();
         });
-
-    }
-private:
-    void eth_in(net::packet pkt){
-        auto eh = pkt.get_header<net::eth_hdr>();
-        if(eh){
-            auto eh_proto = net::ntoh(eh->eth_proto);
-
-            switch(static_cast<net::eth_protocol_num>(eh_proto)){
-            case net::eth_protocol_num::arp: {
-                arp_in(std::move(pkt));
-                break;
-            }
-            case net::eth_protocol_num::ipv4 : {
-                ipv4_in(std::move(pkt));
-                break;
-            }
-            default :{
-                break;
-            }
-            }
-        }
-    }
-
-    void arp_in(net::packet pkt) {
-
-    }
-
-    void ipv4_in(net::packet pkt){
-
-    }
-
-    void tcp_in(net::packet pkt){
-
-    }
-
-    void udp_in(net::packet pkt){
-
-    }
-
-    void icmp_in(net::packet pkt){
-
     }
 };
 
 int main(int ac, char** av) {
     app_template app;
-    ports_env all_ports;
+    timer<steady_clock_type> to;
 
-    return app.run_deprecated(ac, av, [&app, &all_ports]{
-        auto& opts = app.configuration();
-        circular_buffer<net::packet> buf;
-        printf("The size of a circular_buffer of seastar is %zu\n", sizeof(buf));
+    return app.run_deprecated(ac, av, [&app, &to]{
+        auto mon_impl = make_lw_shared<netstar::internal::tcp_monitor_impl>();
+        auto mon = make_lw_shared<tcp_monitor>(mon_impl);
+        auto tester_ptr = new tester(std::move(mon));
 
-        std::unordered_map<std::string, net::ipv4_address> p0_addr_map;
-        p0_addr_map["host-ipv4-addr"] = net::ipv4_address("10.28.1.13");
-        p0_addr_map["gw-ipv4-addr"] = net::ipv4_address("10.28.1.1");
-        p0_addr_map["netmask-ipv4-addr"] = net::ipv4_address("255.255.255.255");
+        to.set_callback([mon_impl]{
+            printf("Timer called\n");
+            mon_impl->receive_pkt(net::packet(), direction::EGRESS);
+        });
+        to.arm_periodic(1s);
 
-        return all_ports.add_stack_port(opts, 0, smp::count, std::move(p0_addr_map)).then([&opts, &all_ports]{
-            std::unordered_map<std::string, net::ipv4_address> p1_addr_map;
-            p1_addr_map["host-ipv4-addr"] = net::ipv4_address("10.29.1.13");
-            p1_addr_map["gw-ipv4-addr"] = net::ipv4_address("10.29.1.1");
-            p1_addr_map["netmask-ipv4-addr"] = net::ipv4_address("255.255.255.255");
-
-            return all_ports.add_stack_port(opts, 1, smp::count, std::move(p1_addr_map));
-        }).then_wrapped([](auto&& f){
-            try{
-                f.get();
-                printf("Finish creating two stack ports\n");
-            }
-            catch(...){
-                printf("Error creating two stack ports\n");
-            }
+        return tester_ptr->run().then([tester_ptr]{
+            delete tester_ptr;
         });
     });
 }

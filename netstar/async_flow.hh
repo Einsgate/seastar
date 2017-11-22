@@ -58,6 +58,7 @@ private:
         , _pkt_counter(0)
         , _previous_pkt_counter(0)
         , _drop_counter(0){
+        _receiveq.reserve(max_receiveq_size);
         _to.set_callback([this]{timeout();});
         _to.arm(std::chrono::seconds(timeout_interval));
     }
@@ -104,6 +105,7 @@ private:
     }
     void abort(){
         if(_status!=af_state::ABORT){
+            _status = af_state::ABORT;
             while(!_receiveq.empty()){
                 _receiveq.pop_front();
             }
@@ -111,7 +113,6 @@ private:
                 _new_pkt_promise->set_value();
                 _new_pkt_promise = {};
             }
-            _status = af_state::ABORT;
         }
     }
     FlowKeyType& get_flow_key(){
@@ -240,18 +241,23 @@ private:
  * class flow_context{
  *  async_flow<TCPType> _af;
  *  net::packt _cur_pkt;
- *
  *  future<> run(){
  *      _af.on_new_packet().then([]{
- *
  *          _cur_pkt = _af.get_packet();
  *          if(!_cur_pkt){
  *              return make_ready_future<>();
  *          }
- *          return mica_query()
- *      }).then([this](mica_query_response){
- *
- *      }).then([]{
+ *          return mica_ready(flow_key);
+ *      }).then([this](mica_query_response automaton state){
+ *          auto new_state = automaton.check(_cur_pkt, state);
+ *          if(new_state == alarm){
+ *              drop(_cur_pkt);
+ *              return make_ready_future<>();
+ *          }
+ *          else{
+ *              return mica_write(flow_key, new_state);
+ *          }
+ *      }).then([](mica_query_response){
  *          return run();
  *      })
  *  }

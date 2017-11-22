@@ -160,6 +160,17 @@ public:
         _l3self = addr;
     }
     friend class arp;
+/*
+ * patch by djp
+ * hijack arp
+ */
+private:
+    std::vector<arp_for<L3>*> _other_arp_fors{0};
+public:
+    void set_other_arp_fors(std::vector<arp_for<L3>*> other_arp_fors){
+        printf("Thread %d: arp_for instance setting other_arp_fors with size %zu\n", engine().cpu_id(), other_arp_fors.size());
+        _other_arp_fors = std::move(other_arp_fors);
+    }
 };
 
 template <typename L3>
@@ -268,9 +279,26 @@ arp_for<L3>::received(packet p) {
     switch (h.oper) {
     case op_request:
         return handle_request(&h);
-    case op_reply:
-        arp_learn(h.sender_hwaddr, h.sender_paddr);
+    case op_reply: {
+        /*
+         * patch by djp
+         * hijack arp
+         */
+        if(_other_arp_fors.size()==0){
+            arp_learn(h.sender_hwaddr, h.sender_paddr);
+        }
+        else{
+            if(_other_arp_fors.size()==smp::count){
+                for(unsigned i=0; i<smp::count; i++){
+                    smp::submit_to(i,
+                            [other_arp=_other_arp_fors.at(i), l2=h.sender_hwaddr, l3=h.sender_paddr]{
+                        other_arp->learn(l2, l3);
+                    });
+                }
+            }
+        }
         return make_ready_future<>();
+    }
     default:
         return make_ready_future<>();
     }

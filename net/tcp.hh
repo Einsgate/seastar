@@ -736,11 +736,16 @@ tcp<InetTraits>::tcp(inet_type& inet)
     , _e(_rd()) {
     namespace sm = metrics;
 
-    _metrics.add_group("tcp", {
+    /*
+     * patch by djp
+     * temporarily remove the following metric to
+     * prevent from unexpected exception
+     */
+    /*_metrics.add_group("tcp", {
         sm::make_derive("linearizations", [] { return tcp_packet_merger::linearizations(); },
                         sm::description("Counts a number of times a buffer linearization was invoked during the buffers merge process. "
                                         "Divide it by a total TCP receive packet rate to get an everage number of lineraizations per TCP packet."))
-    });
+    });*/
 
     _inet.register_packet_provider([this, tcb_polled = 0u] () mutable {
         std::experimental::optional<typename InetTraits::l4packet> l4p;
