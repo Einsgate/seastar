@@ -30,50 +30,95 @@
 #include "netstar/extendable_buffer.hh"
 #include "netstar/stack_port.hh"
 #include "netstar/port_env.hh"
-#include "netstar/tcp_monitoring_flow.hh"
+#include "netstar/af/async_flow.hh"
 
 using namespace seastar;
 using namespace netstar;
 using namespace std::chrono_literals;
 
-class tester{
-    lw_shared_ptr<tcp_monitor> _monitor;
+enum class fk_events : uint8_t{
+    fk_me=0,
+    fk_you=1,
+    fk_everybody=2
+};
+
+class dummy_ppr{
+private:
+    bool _is_client;
 public:
-    tester(lw_shared_ptr<tcp_monitor> monitor)
-        : _monitor(std::move(monitor)){
+    using EventEnumType = fk_events;
+    using FlowKeyType = int;
+
+    dummy_ppr(bool is_client)
+        : _is_client(is_client) {
+    }
+public:
+    filtered_events<EventEnumType> handle_packet_send(net::packet& pkt){
+        return filtered_events<EventEnumType>(1);
     }
 
-    future<> run(){
-        return _monitor->on_new_packet().then([this]{
-            printf("Monitor receives packet\n");
-            _monitor->read_packet();
-            if(_monitor->is_impl_ended()){
-                return make_ready_future<>();
+    filtered_events<EventEnumType> handle_packet_recv(net::packet& pkt){
+        return filtered_events<EventEnumType>(1);
+    }
+    int get_reverse_flow_key(net::packet& pkt){
+        return 2;
+    }
+public:
+    struct async_flow_config {
+        static constexpr int max_event_context_queue_size = 5;
+        static constexpr int new_flow_queue_size = 100;
+        static constexpr int max_flow_table_size = 10000;
+    };
+};
+
+/*class flow_processor {
+    async_flow<TCP> _af;
+    gate _g;
+
+};
+
+do_with(flow_processor(std::move(af)), [](auto& obj){
+    _g.enter();
+    repeat([obj]{
+        return obj.on_client_side_events().then([](bool side_flag){
+            auto cur_context = obj.get_current_context(side_flag);
+            if(cur_context.close_event_happen()){
+                return iteration::no;
             }
             else{
-                return run();
+                cur_context.event_happen<fk_event::wtf>(send){
+
+                }
             }
         });
-    }
-};
+    }).then([obj]{
+        obj_g.leave();
+    })
+
+    _g.enter();
+    repeat([obj]{
+
+    }).then([obj]{
+        obj_g.leave();
+    })
+
+    return _g.close();
+});*/
 
 int main(int ac, char** av) {
     app_template app;
     timer<steady_clock_type> to;
+    circular_buffer<af_ev_context<dummy_ppr>> q;
+    async_flow_manager<dummy_ppr> manager;
 
-    return app.run_deprecated(ac, av, [&app, &to]{
-        auto mon_impl = make_lw_shared<netstar::internal::tcp_monitor_impl>();
-        auto mon = make_lw_shared<tcp_monitor>(mon_impl);
-        auto tester_ptr = new tester(std::move(mon));
-
-        to.set_callback([mon_impl]{
-            printf("Timer called\n");
-            mon_impl->receive_pkt(net::packet(), direction::EGRESS);
-        });
-        to.arm_periodic(1s);
-
-        return tester_ptr->run().then([tester_ptr]{
-            delete tester_ptr;
-        });
+    return app.run_deprecated(ac, av, [&app, &to, &q, &manager]{
+        netstar::internal::async_flow_impl<dummy_ppr> af(manager, 1, 1);
+        q.emplace_back(af_ev_context<dummy_ppr>{net::packet(), filtered_events<fk_events>(1), false, false});
+        // af_ev_context<dummy_ppr> context = std::move(q.front());
+        auto context(std::move(q.front()));
+        q.pop_front();
+        assert(context.events().on_event<fk_events::fk_me>());
     });
+
+
 }
