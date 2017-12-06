@@ -32,93 +32,144 @@
 #include "netstar/port_env.hh"
 #include "netstar/af/async_flow.hh"
 
+#include "net/ip.hh"
+#include "net/byteorder.hh"
+
+#include <array>
+
 using namespace seastar;
 using namespace netstar;
 using namespace std::chrono_literals;
 
-enum class fk_events : uint8_t{
-    fk_me=0,
-    fk_you=1,
-    fk_everybody=2
+enum class dummy_udp_events : uint8_t{
+    pkt_in=0
 };
 
-class dummy_ppr{
+class dummy_udp_ppr{
 private:
     bool _is_client;
 public:
-    using EventEnumType = fk_events;
-    using FlowKeyType = int;
+    using EventEnumType = dummy_udp_events;
+    using FlowKeyType = net::l4connid<net::ipv4_traits>;
+    using HashFunc = net::l4connid<net::ipv4_traits>::connid_hash;
 
-    dummy_ppr(bool is_client)
+    dummy_udp_ppr(bool is_client)
         : _is_client(is_client) {
     }
+
 public:
-    filtered_events<EventEnumType> handle_packet_send(net::packet& pkt){
-        return filtered_events<EventEnumType>(1);
+    generated_events<EventEnumType> handle_packet_send(net::packet& pkt){
+        generated_events<EventEnumType> ge;
+        ge.event_happen<dummy_udp_events::pkt_in>();
+        return ge;
     }
 
-    filtered_events<EventEnumType> handle_packet_recv(net::packet& pkt){
-        return filtered_events<EventEnumType>(1);
+    generated_events<EventEnumType> handle_packet_recv(net::packet& pkt){
+        generated_events<EventEnumType> ge;
+        ge.event_happen<dummy_udp_events::pkt_in>();
+        return ge;
     }
-    int get_reverse_flow_key(net::packet& pkt){
-        return 2;
+
+    FlowKeyType get_reverse_flow_key(net::packet& pkt){
+        auto ip_hd_ptr = pkt.get_header<net::ip_hdr>(sizeof(net::eth_hdr));
+        auto udp_hd_ptr = pkt.get_header<net::udp_hdr>(sizeof(net::eth_hdr)+sizeof(net::ip_hdr));
+        return FlowKeyType{net::ntoh(ip_hd_ptr->src_ip),
+                           net::ntoh(ip_hd_ptr->dst_ip),
+                           net::ntoh(udp_hd_ptr->src_port),
+                           net::ntoh(udp_hd_ptr->dst_port)};
     }
+
 public:
     struct async_flow_config {
         static constexpr int max_event_context_queue_size = 5;
         static constexpr int new_flow_queue_size = 100;
         static constexpr int max_flow_table_size = 10000;
+        static constexpr int max_directions = 2;
+
+        static FlowKeyType get_flow_key(net::packet& pkt){
+            auto ip_hd_ptr = pkt.get_header<net::ip_hdr>(sizeof(net::eth_hdr));
+            auto udp_hd_ptr = pkt.get_header<net::udp_hdr>(sizeof(net::eth_hdr)+sizeof(net::ip_hdr));
+            return FlowKeyType{net::ntoh(ip_hd_ptr->dst_ip),
+                               net::ntoh(ip_hd_ptr->src_ip),
+                               net::ntoh(udp_hd_ptr->dst_port),
+                               net::ntoh(udp_hd_ptr->src_port)};
+        }
+
+        static net::packet build_pkt(const char* buf){
+            ipv4_addr ipv4_src_addr("10.1.2.4:666");
+            ipv4_addr ipv4_dst_addr("10.1.2.5:666");
+            auto pkt = net::packet::from_static_data(buf, strlen(buf));
+
+            auto hdr = pkt.prepend_header<net::udp_hdr>();
+            hdr->src_port = ipv4_src_addr.port;
+            hdr->dst_port = ipv4_dst_addr.port;
+            hdr->len = pkt.len();
+            *hdr = net::hton(*hdr);
+
+            net::checksummer csum;
+            net::ipv4_traits::udp_pseudo_header_checksum(csum, ipv4_src_addr, ipv4_dst_addr, pkt.len());
+            csum.sum(pkt);
+            hdr->cksum = csum.get();
+
+            net::offload_info oi;
+            oi.needs_csum = false;
+            oi.protocol = net::ip_protocol_num::udp;
+            pkt.set_offload_info(oi);
+
+            auto iph = pkt.prepend_header<net::ip_hdr>();
+            iph->ihl = sizeof(*iph) / 4;
+            iph->ver = 4;
+            iph->dscp = 0;
+            iph->ecn = 0;
+            iph->len = pkt.len();
+            iph->id = 0;
+            iph->frag = 0;
+            iph->ttl = 64;
+            iph->ip_proto = (uint8_t)net::ip_protocol_num::udp;
+            iph->csum = 0;
+            iph->src_ip = net::ipv4_address(ipv4_src_addr.ip);
+            iph->dst_ip = net::ipv4_address(ipv4_dst_addr.ip);
+            *iph = net::hton(*iph);
+            net::checksummer ip_csum;
+            ip_csum.sum(reinterpret_cast<char*>(iph), sizeof(*iph));
+            iph->csum = csum.get();
+
+            auto eh = pkt.prepend_header<net::eth_hdr>();
+            net::ethernet_address eth_src{0x3c, 0xfd, 0xfe, 0x06, 0x07, 0x82};
+            net::ethernet_address eth_dst{0x3c, 0xfd, 0xfe, 0x06, 0x09, 0x62};
+            eh->dst_mac = eth_dst;
+            eh->src_mac = eth_src;
+            eh->eth_proto = uint16_t(net::eth_protocol_num::ipv4);
+            *eh = net::hton(*eh);
+
+            pkt.linearize();
+            assert(pkt.nr_frags() == 1);
+            return pkt;
+        }
     };
 };
 
-/*class flow_processor {
-    async_flow<TCP> _af;
-    gate _g;
-
-};
-
-do_with(flow_processor(std::move(af)), [](auto& obj){
-    _g.enter();
-    repeat([obj]{
-        return obj.on_client_side_events().then([](bool side_flag){
-            auto cur_context = obj.get_current_context(side_flag);
-            if(cur_context.close_event_happen()){
-                return iteration::no;
-            }
-            else{
-                cur_context.event_happen<fk_event::wtf>(send){
-
-                }
-            }
-        });
-    }).then([obj]{
-        obj_g.leave();
-    })
-
-    _g.enter();
-    repeat([obj]{
-
-    }).then([obj]{
-        obj_g.leave();
-    })
-
-    return _g.close();
-});*/
 
 int main(int ac, char** av) {
     app_template app;
     timer<steady_clock_type> to;
-    circular_buffer<af_ev_context<dummy_ppr>> q;
-    async_flow_manager<dummy_ppr> manager;
+    async_flow_manager<dummy_udp_ppr> manager;
+    async_flow_manager<dummy_udp_ppr>::external_io_direction ingress(0);
+    async_flow_manager<dummy_udp_ppr>::external_io_direction egress(1);
+    net::packet the_pkt = dummy_udp_ppr::async_flow_config::build_pkt("abcdefg");
 
-    return app.run_deprecated(ac, av, [&app, &to, &q, &manager]{
-        netstar::internal::async_flow_impl<dummy_ppr> af(manager, 1, 1);
-        q.emplace_back(af_ev_context<dummy_ppr>{net::packet(), filtered_events<fk_events>(1), false, false});
-        // af_ev_context<dummy_ppr> context = std::move(q.front());
-        auto context(std::move(q.front()));
-        q.pop_front();
-        assert(context.events().on_event<fk_events::fk_me>());
+    return app.run_deprecated(ac, av, [&app, &to, &manager, &ingress, &egress, &the_pkt]{
+        ingress.register_to_manager(manager, [](net::packet pkt){return make_ready_future();}, egress);
+        egress.register_to_manager(manager, [](net::packet pkt){return make_ready_future();}, ingress);
+        net::packet pkt(the_pkt.frag(0));
+        dummy_udp_ppr::FlowKeyType fk = dummy_udp_ppr::async_flow_config::get_flow_key(pkt);
+        ingress.get_send_stream().produce(std::move(pkt), &fk);
+
+        return manager.on_new_flow().then([](af_initial_context<dummy_udp_ppr> ic){
+            printf("Get the first async_flow \n");
+            ic.check_impl();
+        }).then([](){
+            engine().exit(0);
+        });
     });
-
-
 }
