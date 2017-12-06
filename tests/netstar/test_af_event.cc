@@ -30,9 +30,10 @@
 #include "netstar/extendable_buffer.hh"
 #include "netstar/stack_port.hh"
 #include "netstar/port_env.hh"
-#include "netstar/af/async_flow_event.hh"
+#include "netstar/af/async_flow_util.hh"
 
 using namespace seastar;
+using namespace netstar::internal;
 using namespace netstar;
 using namespace std::chrono_literals;
 
@@ -52,73 +53,73 @@ int main(int ac, char** av) {
 
     {
         registered_events<fk_events> re;
-        re.register_event<fk_events::fk_me>();
-        re.register_event<fk_events::fk_you>();
+        re.register_event(fk_events::fk_me);
+        re.register_event(fk_events::fk_you);
 
         generated_events<fk_events> ge;
-        ge.event_happen<fk_events::fk_me>();
+        ge.event_happen(fk_events::fk_me);
         auto fe = re.filter(ge);
-        assert(fe.on_event<fk_events::fk_me>());
-        assert(!fe.on_event<fk_events::fk_you>());
-        assert(!fe.on_event<fk_events::fk_everybody>());
+        assert(fe.on_event(fk_events::fk_me));
+        assert(!fe.on_event(fk_events::fk_you));
+        assert(!fe.on_event(fk_events::fk_everybody));
         assert(!fe.on_close_event());
     }
 
     {
         registered_events<fk_events> re;
-        re.register_event<fk_events::fk_me>();
-        re.register_event<fk_events::fk_you>();
+        re.register_event(fk_events::fk_me);
+        re.register_event(fk_events::fk_you);
 
         generated_events<fk_events> ge;
-        ge.event_happen<fk_events::fk_you>();
+        ge.event_happen(fk_events::fk_you);
         auto fe = re.filter(ge);
-        assert(!fe.on_event<fk_events::fk_me>());
-        assert(fe.on_event<fk_events::fk_you>());
-        assert(!fe.on_event<fk_events::fk_everybody>());
+        assert(!fe.on_event(fk_events::fk_me));
+        assert(fe.on_event(fk_events::fk_you));
+        assert(!fe.on_event(fk_events::fk_everybody));
         assert(!fe.on_close_event());
     }
 
 
     {
         registered_events<fk_events> re;
-        re.register_event<fk_events::fk_me>();
-        re.register_event<fk_events::fk_you>();
+        re.register_event(fk_events::fk_me);
+        re.register_event(fk_events::fk_you);
 
         generated_events<fk_events> ge;
-        ge.event_happen<fk_events::fk_everybody>();
+        ge.event_happen(fk_events::fk_everybody);
         auto fe = re.filter(ge);
-        assert(!fe.on_event<fk_events::fk_me>());
-        assert(!fe.on_event<fk_events::fk_you>());
-        assert(!fe.on_event<fk_events::fk_everybody>());
+        assert(!fe.on_event(fk_events::fk_me));
+        assert(!fe.on_event(fk_events::fk_you));
+        assert(!fe.on_event(fk_events::fk_everybody));
         assert(!fe.on_close_event());
     }
 
     {
         registered_events<fk_events> re;
-        re.register_event<fk_events::fk_me>();
-        re.register_event<fk_events::fk_you>();
+        re.register_event(fk_events::fk_me);
+        re.register_event(fk_events::fk_you);
 
         generated_events<fk_events> ge;
         ge.close_event_happen();
         auto fe = re.filter(ge);
-        assert(!fe.on_event<fk_events::fk_me>());
-        assert(!fe.on_event<fk_events::fk_you>());
-        assert(!fe.on_event<fk_events::fk_everybody>());
+        assert(!fe.on_event(fk_events::fk_me));
+        assert(!fe.on_event(fk_events::fk_you));
+        assert(!fe.on_event(fk_events::fk_everybody));
         assert(fe.on_close_event());
     }
 
     {
         registered_events<fk_events> re;
-        re.register_event<fk_events::fk_me>();
-        re.register_event<fk_events::fk_you>();
-        re.unregister_event<fk_events::fk_me>();
+        re.register_event(fk_events::fk_me);
+        re.register_event(fk_events::fk_you);
+        re.unregister_event(fk_events::fk_me);
 
         generated_events<fk_events> ge;
-        ge.event_happen<fk_events::fk_me>();
+        ge.event_happen(fk_events::fk_me);
         auto fe = re.filter(ge);
-        assert(!fe.on_event<fk_events::fk_me>());
-        assert(!fe.on_event<fk_events::fk_you>());
-        assert(!fe.on_event<fk_events::fk_everybody>());
+        assert(!fe.on_event(fk_events::fk_me));
+        assert(!fe.on_event(fk_events::fk_you));
+        assert(!fe.on_event(fk_events::fk_everybody));
         assert(!fe.on_close_event());
     }
 }

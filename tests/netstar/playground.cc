@@ -60,13 +60,13 @@ public:
 public:
     generated_events<EventEnumType> handle_packet_send(net::packet& pkt){
         generated_events<EventEnumType> ge;
-        ge.event_happen<dummy_udp_events::pkt_in>();
+        ge.event_happen(dummy_udp_events::pkt_in);
         return ge;
     }
 
     generated_events<EventEnumType> handle_packet_recv(net::packet& pkt){
         generated_events<EventEnumType> ge;
-        ge.event_happen<dummy_udp_events::pkt_in>();
+        ge.event_happen(dummy_udp_events::pkt_in);
         return ge;
     }
 
@@ -149,6 +149,21 @@ public:
     };
 };
 
+class async_flow_loop {
+    async_flow<dummy_udp_ppr> _af;
+public:
+    async_flow_loop(async_flow<dummy_udp_ppr> af)
+        : _af(std::move(af)){
+    }
+
+    void configure() {
+        _af.register_client_events(af_send_recv::send, dummy_udp_events::pkt_in);
+    }
+
+    /*future<> run() {
+        _af.on_client_side_events().then()
+    }*/
+};
 
 int main(int ac, char** av) {
     app_template app;
@@ -165,9 +180,10 @@ int main(int ac, char** av) {
         dummy_udp_ppr::FlowKeyType fk = dummy_udp_ppr::async_flow_config::get_flow_key(pkt);
         ingress.get_send_stream().produce(std::move(pkt), &fk);
 
-        return manager.on_new_flow().then([](af_initial_context<dummy_udp_ppr> ic){
-            printf("Get the first async_flow \n");
-            ic.check_impl();
+        return manager.on_new_initial_context().then([&manager]() mutable {
+            auto ic = manager.get_initial_context();
+            async_flow_loop l(ic.get_async_flow());
+            l.configure();
         }).then([](){
             engine().exit(0);
         });
