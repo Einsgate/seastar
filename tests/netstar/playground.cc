@@ -161,8 +161,39 @@ public:
     }
 
     /*future<> run() {
-        _af.on_client_side_events().then()
+        _af.on_client_side_events().then([](client_accessor cac){
+
+            auto& pkt = _af.get_pkt_ref(cac);
+
+            auto& wu = _af.get_work_unit(cac);
+            auto data = wu.read_data();
+
+            auto result = detection_engine().feed(std::move(data));
+
+
+
+            return _mica_client.query(xxx);
+        }).then([this](response){
+            _af.destroy_context(std::move(cac));
+        });
     }*/
+
+    /* final api:
+     * _af.run_async_loop([this](){
+     *
+     *
+     * });
+
+
+     */
+};
+
+struct dummy{
+    int i;
+    dummy(int i_arg) : i(i_arg){}
+    ~dummy(){
+        printf("dummy is deconstructed\n");
+    }
 };
 
 int main(int ac, char** av) {
@@ -172,6 +203,10 @@ int main(int ac, char** av) {
     async_flow_manager<dummy_udp_ppr>::external_io_direction ingress(0);
     async_flow_manager<dummy_udp_ppr>::external_io_direction egress(1);
     net::packet the_pkt = dummy_udp_ppr::async_flow_config::build_pkt("abcdefg");
+    std::experimental::optional<dummy> d;
+    d.emplace(1);
+    d = {};
+    assert(!d);
 
     return app.run_deprecated(ac, av, [&app, &to, &manager, &ingress, &egress, &the_pkt]{
         ingress.register_to_manager(manager, [](net::packet pkt){return make_ready_future();}, egress);
