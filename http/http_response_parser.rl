@@ -27,6 +27,7 @@ namespace seastar {
 
 struct http_response {
     sstring _version;
+    sstring _status_code;
     std::unordered_map<sstring, sstring> _headers;
 };
 
@@ -42,6 +43,10 @@ action mark {
 
 action store_version {
     _rsp->_version = str();
+}
+
+action store_status_code {
+    _rsp->_status_code = str();
 }
 
 action store_field_name {
@@ -80,7 +85,8 @@ http_version = 'HTTP/' (digit '.' digit) >mark %store_version;
 
 field = tchar+ >mark %store_field_name;
 value = any* >mark %store_value;
-start_line = http_version space digit digit digit space (any - cr - lf)* crlf;
+status_code = (digit digit digit) >mark %store_status_code;
+start_line = http_version space status_code space (any - cr - lf)* crlf;
 header_1st = (field sp_ht* ':' value :> crlf) %assign_field;
 header_cont = (sp_ht+ value sp_ht* crlf) %extend_field;
 header = header_1st header_cont*;

@@ -1,6 +1,0 @@
-getting-started.cc: In instantiation of ‘void log_message(const char*, Args ...) [with Args = {}]’:
-getting-started.cc:90:27:   required from here
-getting-started.cc:69:9: error: format not a string literal and no format arguments [-Werror=format-security]
-  fprintf(DEBUG_FILE, fmt, args...);
-         ^
-cc1plus: all warnings being treated as errors

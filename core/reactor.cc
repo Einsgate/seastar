@@ -755,6 +755,7 @@ reactor::make_pollable_fd(socket_address sa, transport proto) {
 
 future<>
 reactor::posix_connect(lw_shared_ptr<pollable_fd> pfd, socket_address sa, socket_address local) {
+    pfd->get_file_desc().setsockopt(SOL_SOCKET, SO_REUSEADDR, 1);
     pfd->get_file_desc().bind(local.u.sa, sizeof(sa.u.sas));
     pfd->get_file_desc().connect(sa.u.sa, sizeof(sa.u.sas));
     return pfd->writeable().then([pfd]() mutable {
