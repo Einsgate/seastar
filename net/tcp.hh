@@ -331,7 +331,10 @@ private:
         struct send {
             tcp_seq unacknowledged;
             tcp_seq next;
-            uint32_t window;
+            /* patch by djp
+             * Assign an initial value to window.
+             */
+            uint32_t window=3737600;
             uint8_t window_scale;
             uint16_t mss;
             tcp_seq urgent;
@@ -629,7 +632,11 @@ private:
     std::unordered_map<uint16_t, listener*> _listening;
     std::random_device _rd;
     std::default_random_engine _e;
-    std::uniform_int_distribution<uint16_t> _port_dist{41952, 65535};
+    /*
+     * patch by djp
+     * inrease the range of _port_dist
+     */
+    std::uniform_int_distribution<uint16_t> _port_dist{/*41952*/21952, 65535};
     circular_buffer<std::pair<lw_shared_ptr<tcb>, ethernet_address>> _poll_tcbs;
     // queue for packets that do not belong to any tcb
     circular_buffer<ipv4_traits::l4packet> _packetq;
@@ -787,12 +794,31 @@ auto tcp<InetTraits>::connect(socket_address sa) -> connection {
     auto dst_ip = ipv4_address(sa);
     auto dst_port = net::ntoh(sa.u.in.sin_port);
 
-    do {
+    /* patch by djp
+     * change the following logic.
+     */
+    /*do {
         src_port = _port_dist(_e);
         id = connid{src_ip, dst_ip, src_port, dst_port};
     } while (_inet._inet.netif()->hw_queues_count() > 1 &&
              (_inet._inet.netif()->hash2cpu(id.hash(_inet._inet.netif()->rss_key())) != engine().cpu_id()
-              || _tcbs.find(id) != _tcbs.end()));
+              || _tcbs.find(id) != _tcbs.end()));*/
+    auto netif = _inet._inet.netif();
+    while(true) {
+        src_port = _port_dist(_e);
+        id = connid{src_ip, dst_ip, src_port, dst_port};
+        if(netif->hw_queues_count() > 1) {
+            if( netif->hash2cpu(id.hash(netif->rss_key())) == engine().cpu_id()
+                && _tcbs.find(id) == _tcbs.end() ){
+                break;
+            }
+        }
+        else{
+            if(_tcbs.find(id) == _tcbs.end()){
+                break;
+            }
+        }
+    }
 
     auto tcbp = make_lw_shared<tcb>(*this, id);
     _tcbs.insert({id, tcbp});
