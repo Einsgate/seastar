@@ -266,6 +266,8 @@ tests = [
     'tests/tuple_utils_test',
     'tests/tls_echo_server',
     'tests/tls_simple_client',
+    'tests/http_client',
+    'tests/http_proxy',
     ]
 
 apps = [
@@ -489,6 +491,8 @@ deps = {
     'tests/tuple_utils_test': ['tests/tuple_utils_test.cc'],
     'tests/tls_echo_server': ['tests/tls_echo_server.cc'] + core + libnet,
     'tests/tls_simple_client': ['tests/tls_simple_client.cc'] + core + libnet,
+    'tests/http_client': ['tests/http_client.cc'] + core + libnet,
+    'tests/http_proxy': ['tests/http_proxy.cc'] + core + libnet + http,
 }
 
 boost_tests = [
