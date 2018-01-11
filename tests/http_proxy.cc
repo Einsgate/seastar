@@ -9,6 +9,7 @@
 #include "http/http_response_parser.hh"
 #include "http/request.hh"
 #include "http/reply.hh"
+#include "core/distributed.hh"
 #include <iostream>
 #include <cstring>
 #include "tests/log.hh"
@@ -170,6 +171,54 @@ public:
 	size_t get_content_length(Headers &headers);
 	future<> handle();
 };
+
+class http_proxy_server {
+	server_socket _listener;
+	semaphore conn_id{1};
+	size_t id = 0;
+public:
+	future<> do_accepts(server_socket &listener) {
+		//log_message("accept() BEGINS.\n");
+		return listener.accept().then([&listener, this] (seastar::connected_socket s, seastar::socket_address a) {
+			//log_message("Here comes a new connection...\n");
+			return conn_id.wait(1).then([s = std::move(s), a = std::move(a), &listener, this] () mutable {
+				//log_message("Here comes a new connection %d\n", id);
+				http_proxy_connect *conn = new http_proxy_connect(std::move(s), std::move(a), id);
+				id++;
+				conn_id.signal(1);
+			
+				if(conn) {
+					conn->handle().then_wrapped([conn] (auto &&f) {
+						//log_message("handle() finished.");
+						f.ignore_ready_future();
+						delete conn;
+					});
+				}
+				else{
+					log_message("service_loop() ERROR: Out of memory.\n");
+				}
+
+				this->do_accepts(listener);
+			});
+		});
+	}
+
+	/*  
+		Main proxy service loop
+	*/
+	future<> service_loop(){
+		seastar::listen_options lo;
+		lo.reuse_address = true;
+		_listener = engine().listen(seastar::make_ipv4_address(6666), lo);
+		do_accepts(_listener);
+		return make_ready_future();
+	}
+
+	future<> stop() {
+        return make_ready_future();
+    }
+};
+
 
 void print_headers(std::unordered_map<sstring, sstring> &headers) {
 	for(auto it = headers.begin(); it != headers.end(); it++) {
@@ -450,54 +499,14 @@ future<> http_proxy_connect::forward_data_zero_copy_flush(output_stream<char> &d
 	});
 }
 
-semaphore conn_id{1};
-size_t id = 0;
-
-future<> do_accepts(server_socket &listener) {
-	//log_message("accept() BEGINS.\n");
-	return listener.accept().then([&listener] (seastar::connected_socket s, seastar::socket_address a) {
-		//log_message("Here comes a new connection...\n");
-		return conn_id.wait(1).then([s = std::move(s), a = std::move(a), &listener] () mutable {
-			//log_message("Here comes a new connection %d\n", id);
-			http_proxy_connect *conn = new http_proxy_connect(std::move(s), std::move(a), id);
-			id++;
-			conn_id.signal(1);
-		
-			if(conn) {
-				conn->handle().then_wrapped([conn] (auto &&f) {
-					//log_message("handle() finished.");
-					f.ignore_ready_future();
-					delete conn;
-				});
-			}
-			else{
-				log_message("service_loop() ERROR: Out of memory.\n");
-			}
-
-			do_accepts(listener);
-		});
-	});
-}
-
-/*  
-	Main proxy service loop
-*/
-future<> service_loop(){
-	seastar::listen_options lo;
-	lo.reuse_address = true;
-	server_socket *listener = new server_socket;
-	*listener = listen(seastar::make_ipv4_address(6666));
-
-	do_accepts(*listener);
-	return make_ready_future();
-}
-
-
-
 int main(int argc, char** argv) {
 	seastar::app_template app;
 	return app.run_deprecated(argc, argv, [] {
+		auto *server = new distributed<http_proxy_server>;
+
 		std::cout << "Start service loop...\n";
-		return service_loop();
+		return server->start().then([server] {
+			return server->invoke_on_all(&http_proxy_server::service_loop);
+		});
 	});
 }

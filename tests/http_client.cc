@@ -31,7 +31,7 @@
 
 using namespace seastar;
 
-#define HTTP_DEBUG 1
+#define HTTP_DEBUG 0
 
 template <typename... Args>
 void http_debug(const char* fmt, Args&&... args) {

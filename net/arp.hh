@@ -29,6 +29,7 @@
 #include "ethernet.hh"
 #include "core/print.hh"
 #include <unordered_map>
+#include <string>
 
 namespace seastar {
 
@@ -150,6 +151,12 @@ public:
     future<> send_query(const l3addr& paddr);
     explicit arp_for(arp& a) : arp_for_protocol(a, L3::arp_protocol_type()) {
         _table[L3::broadcast_address()] = ethernet::broadcast_address();
+        _table[l3addr(std::string("10.28.1.11"))] = l2addr({0x3c, 0xfd, 0xfe, 0x06, 0x08, 0x00});
+        _table[l3addr(std::string("10.28.1.12"))] = l2addr({0x3c, 0xfd, 0xfe, 0x06, 0x09, 0x60});
+        _table[l3addr(std::string("10.28.1.13"))] = l2addr({0x3c, 0xfd, 0xfe, 0x06, 0x07, 0x80});
+        _table[l3addr(std::string("10.29.1.11"))] = l2addr({0x3c, 0xfd, 0xfe, 0x06, 0x08, 0x02});
+        _table[l3addr(std::string("10.29.1.12"))] = l2addr({0x3c, 0xfd, 0xfe, 0x06, 0x09, 0x62});
+        _table[l3addr(std::string("10.29.1.13"))] = l2addr({0x3c, 0xfd, 0xfe, 0x06, 0x07, 0x82});
     }
     future<ethernet_address> lookup(const l3addr& addr);
     void learn(l2addr l2, l3addr l3);

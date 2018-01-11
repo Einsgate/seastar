@@ -3,7 +3,7 @@
 
 #include "core/sstring.hh"
 
-#define PROXY_DEBUG
+//#define PROXY_DEBUG
 //#define PROXY_LOG
 #define LOG_FILE	stdout
 #define DEBUG_FILE	stderr
