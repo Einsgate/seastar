@@ -195,12 +195,18 @@ public:
 					});
 				}
 				else{
-					log_message("service_loop() ERROR: Out of memory.\n");
+					std::cerr << "do_accepts() ERROR: Out of memory.\n";
 				}
 
 				this->do_accepts(listener);
 			});
-		});
+		}).then_wrapped([] (auto f) {
+            try {
+                f.get();
+            } catch (std::exception& ex) {
+                std::cerr << "do_accepts() ERROR: accept failed: " << ex.what() << std::endl;
+            }
+        });
 	}
 
 	/*  
@@ -269,7 +275,7 @@ seastar::future<> http_proxy_connect::handle_http(){
 			request->http_version_major = 0;
 			request->http_version_minor = 9;
 		}
-		//the request to server are always in HTTP/1.1 version
+		//the request to server are always in HTTP/1.0 version
 		request->_version = "1.0";
 
 		//send request line and headers to server
@@ -377,10 +383,10 @@ seastar::future<> http_proxy_connect::handle(){
 		//log_message("Host:%s:%d\n", hostname.c_str(), port);
 		//connect to server
 		return dns.resolve_name(hostname).then([this, port] (auto &&h) {
-			return seastar::connect(ipv4_addr(h, port)).then_wrapped([this] (auto &&f) {
+			return engine().net().connect(ipv4_addr(h, port)).then_wrapped([this] (auto &&f) {
 				if(f.failed()){
 					f.ignore_ready_future();
-					log_message("Connection %d: handle(): Unable to connect to remote server(%s).\n", _id, request->get_header("Host").c_str());
+					print("Connection %d: handle(): Unable to connect to remote server(%s).\n", _id, request->get_header("Host").c_str());
 					throw INTERNAL_SERVER_ERROR;
 				}
 

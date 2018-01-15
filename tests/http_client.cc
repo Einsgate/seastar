@@ -27,11 +27,17 @@
 #include "core/distributed.hh"
 #include "core/semaphore.hh"
 #include "core/future-util.hh"
+#include "core/sleep.hh"
 #include <chrono>
+#include <cstring>
 
 using namespace seastar;
+using namespace net;
+using namespace std::chrono_literals;
 
 #define HTTP_DEBUG 0
+const char *http_request = "GET http://202.45.128.157:10000/ HTTP/1.0\r\nHost: 202.45.128.157:10000\r\n\r\n";
+std::chrono::time_point<std::chrono::steady_clock> started;
 
 template <typename... Args>
 void http_debug(const char* fmt, Args&&... args) {
@@ -44,9 +50,6 @@ class http_client {
 private:
     unsigned _duration;
     unsigned _reqs_per_core;
-    //unsigned _conn_per_core;
-    //unsigned _reqs_per_conn;
-    //std::vector<connected_socket> _sockets;
     semaphore _conn_connected{0};
     semaphore _conn_aviliable{0};
     semaphore _conn_finished{0};
@@ -98,7 +101,7 @@ public:
         }
 
         future<> do_req_once() {
-            return _write_buf.write("GET http://202.45.128.157:10000/ HTTP/1.1\r\nHost: 202.45.128.157:10000\r\n\r\n").then([this] {
+            return _write_buf.write(http_request).then([this] {
                 return _write_buf.flush();
             }).then([this] {
                 _parser.init();
@@ -115,6 +118,9 @@ public:
                         return _read_buf.read().then([this] (temporary_buffer<char> buf) {
                             _nr_done++;
                             http_debug("%s\n", buf.get());
+                            if(strncmp(buf.get(), "\"hello\"", 7) && strncmp(buf.get(), "hello", 5)){
+                                print("May get wrong response content: %s\n", buf.get());
+                            }
                             return make_ready_future();
                         });
                     }
@@ -124,6 +130,9 @@ public:
                     return _read_buf.read_exactly(content_len).then([this] (temporary_buffer<char> buf) {
                         _nr_done++;
                         http_debug("%s\n", buf.get());
+                        if(strncmp(buf.get(), "\"hello\"", 7) && strncmp(buf.get(), "hello", 5)){
+                            print("May get wrong response content: %s\n", buf.get());
+                        }
                         return make_ready_future();
                     });
                 });
@@ -156,6 +165,8 @@ public:
                     _conn_aviliable.signal(1);
                     try {
                         f.get();
+                        http_debug("Successful connection %6d on cpu %3d\n", no, engine().cpu_id());
+                        return make_ready_future();
                     } catch (std::exception& ex) {
                         print("do_req(): http request error: %s\n", ex.what());
                         return make_ready_future();
@@ -163,8 +174,6 @@ public:
                         print("do_req(): http request error: Unknown error\n");
                         return make_ready_future();
                     }
-                    http_debug("Successful connection %6d on cpu %3d\n", no, engine().cpu_id());
-                    return make_ready_future();
                 });
             }).or_terminate();
             http_debug("After starting establishing connection %6d on cpu %3d\n", _conn_connected.current(), engine().cpu_id());
@@ -224,7 +233,57 @@ public:
     future<> stop() {
         return make_ready_future();
     }
+
 };
+
+future<int> test_once(std::string server, unsigned max_para_conn, unsigned total_reqs, unsigned duration) {
+    if (total_reqs % smp::count != 0) {
+        print("Error: reqs needs to be n * cpu_nr\n");
+        return make_ready_future<int>(-1);
+    }
+
+    auto reqs_per_core = total_reqs / smp::count;
+    auto http_clients = new distributed<http_client>;
+    // Start http requests on all the cores
+    print("========== http_client ============\n");
+    print("Server: %s\n", server);
+    print("Requests: %u\n", total_reqs);
+    print("Requests/core: %s\n", reqs_per_core == 0 ? "dynamic (timer based)" : std::to_string(reqs_per_core));
+    return http_clients->start(std::move(duration), std::move(reqs_per_core), std::move(max_para_conn)).then([] {
+        started = steady_clock_type::now();
+    }).then([http_clients, server] {
+        return http_clients->invoke_on_all(&http_client::run, ipv4_addr{server});
+    }).then([http_clients] {
+        return http_clients->map_reduce(adder<uint64_t>(), &http_client::total_reqs);
+    }).then([http_clients] (auto total_reqs) {
+       // All the http requests are finished
+       auto finished = steady_clock_type::now();
+       auto elapsed = finished - started;
+       auto secs = static_cast<double>(elapsed.count() / 1000000000.0);
+       print("Total cpus: %u\n", smp::count);
+       print("Total requests: %u\n", total_reqs);
+       print("Total time: %f\n", secs);
+       print("Requests/sec: %f\n", static_cast<double>(total_reqs) / secs);
+       print("==========     done     ============\n");
+       return http_clients->stop().then([http_clients] {
+           // FIXME: If we call engine().exit(0) here to exit when
+           // requests are done. The tcp connection will not be closed
+           // properly, becasue we exit too earily and the FIN packets are
+           // not exchanged.
+            delete http_clients;
+            return make_ready_future<int>(0);
+       });
+    }).then_wrapped([] (auto &&f) {
+        try{
+            f.get();
+            return make_ready_future<int>(0);
+        }
+        catch(...){
+            return make_ready_future<int>(-1);
+        }
+    });
+}
+
 
 namespace bpo = boost::program_options;
 
@@ -232,53 +291,28 @@ int main(int ac, char** av) {
     app_template app;
     app.add_options()
         ("server,s", bpo::value<std::string>()->default_value("192.168.66.100:10000"), "Server address")
+        ("first-conn,C", bpo::value<unsigned>()->default_value(1), "max parallel connections for first test")
+        ("first-reqs,R", bpo::value<unsigned>()->default_value(0), "total reqs (must be n * cpu_nr) for first test")
+        ("first-duration,D", bpo::value<unsigned>()->default_value(5), "duration of the test in seconds for first test")
         ("conn,c", bpo::value<unsigned>()->default_value(10), "max parallel connections")
         ("reqs,r", bpo::value<unsigned>()->default_value(0), "total reqs (must be n * cpu_nr)")
-        ("duration,d", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds)");
+        ("duration,d", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds");
 
     return app.run(ac, av, [&app] () -> future<int> {
         auto& config = app.configuration();
         auto server = config["server"].as<std::string>();
+        auto first_max_para_conn = config["first-conn"].as<unsigned>();
         auto max_para_conn = config["conn"].as<unsigned>();
+        auto first_total_reqs= config["first-reqs"].as<unsigned>();
         auto total_reqs= config["reqs"].as<unsigned>();
+        auto first_duration = config["first-duration"].as<unsigned>();
         auto duration = config["duration"].as<unsigned>();
 
-        if (total_reqs % smp::count != 0) {
-            print("Error: reqs needs to be n * cpu_nr\n");
-            return make_ready_future<int>(-1);
-        }
-
-        auto reqs_per_core = total_reqs / smp::count;
-        auto http_clients = new distributed<http_client>;
-
-        // Start http requests on all the cores
-        auto started = steady_clock_type::now();
-        print("========== http_client ============\n");
-        print("Server: %s\n", server);
-        print("Requests: %u\n", total_reqs);
-        print("Requests/core: %s\n", reqs_per_core == 0 ? "dynamic (timer based)" : std::to_string(reqs_per_core));
-        return http_clients->start(std::move(duration), std::move(reqs_per_core), std::move(max_para_conn)).then([http_clients, server] {
-            return http_clients->invoke_on_all(&http_client::run, ipv4_addr{server});
-        }).then([http_clients] {
-            return http_clients->map_reduce(adder<uint64_t>(), &http_client::total_reqs);
-        }).then([http_clients, started] (auto total_reqs) {
-           // All the http requests are finished
-           auto finished = steady_clock_type::now();
-           auto elapsed = finished - started;
-           auto secs = static_cast<double>(elapsed.count() / 1000000000.0);
-           print("Total cpus: %u\n", smp::count);
-           print("Total requests: %u\n", total_reqs);
-           print("Total time: %f\n", secs);
-           print("Requests/sec: %f\n", static_cast<double>(total_reqs) / secs);
-           print("==========     done     ============\n");
-           return http_clients->stop().then([http_clients] {
-               // FIXME: If we call engine().exit(0) here to exit when
-               // requests are done. The tcp connection will not be closed
-               // properly, becasue we exit too earily and the FIN packets are
-               // not exchanged.
-                delete http_clients;
-                return make_ready_future<int>(0);
-           });
+        return test_once(server, first_max_para_conn, first_total_reqs, first_duration).then([server, max_para_conn, total_reqs, duration] (int res) {
+            if(res){
+                print("\x1B[31mFirst test failed. Can not guarantee the correctness of next test.\x1B[0m\n");
+            }
+            return test_once(server, max_para_conn, total_reqs, duration);
         });
     });
 }
