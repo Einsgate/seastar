@@ -267,6 +267,7 @@ tests = [
     'tests/tls_echo_server',
     'tests/tls_simple_client',
     'tests/http_client',
+    'tests/http_client_alive',
     'tests/http_proxy',
     'tests/http_proxy_alive',
     ]
@@ -493,6 +494,7 @@ deps = {
     'tests/tls_echo_server': ['tests/tls_echo_server.cc'] + core + libnet,
     'tests/tls_simple_client': ['tests/tls_simple_client.cc'] + core + libnet,
     'tests/http_client': ['tests/http_client.cc'] + core + libnet,
+    'tests/http_client_alive': ['tests/http_client_alive.cc'] + core + libnet,
     'tests/http_proxy': ['tests/http_proxy.cc'] + core + libnet + http,
     'tests/http_proxy_alive': ['tests/http_proxy_alive.cc'] + core + libnet + http,
 }
