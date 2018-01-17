@@ -36,7 +36,7 @@ using namespace net;
 using namespace std::chrono_literals;
 
 #define HTTP_DEBUG 0
-const char *http_request = "GET http://202.45.128.157:10000/ HTTP/1.0\r\nHost: 202.45.128.157:10000\r\n\r\n";
+const char *http_request = "GET http://202.45.128.157:10000/ HTTP/1.1\r\nHost: 202.45.128.157:10000\r\n\r\n";
 std::chrono::time_point<std::chrono::steady_clock> started;
 
 template <typename... Args>
@@ -290,10 +290,10 @@ namespace bpo = boost::program_options;
 int main(int ac, char** av) {
     app_template app;
     app.add_options()
-        ("server,s", bpo::value<std::string>()->default_value("192.168.66.100:10000"), "Server address")
+        ("server,s", bpo::value<std::string>()->default_value("202.45.128.157:6666"), "Server address")
         ("first-conn,C", bpo::value<unsigned>()->default_value(1), "max parallel connections for first test")
         ("first-reqs,R", bpo::value<unsigned>()->default_value(0), "total reqs (must be n * cpu_nr) for first test")
-        ("first-duration,D", bpo::value<unsigned>()->default_value(5), "duration of the test in seconds for first test")
+        ("first-duration,D", bpo::value<unsigned>()->default_value(30), "duration of the test in seconds for first test")
         ("conn,c", bpo::value<unsigned>()->default_value(10), "max parallel connections")
         ("reqs,r", bpo::value<unsigned>()->default_value(0), "total reqs (must be n * cpu_nr)")
         ("duration,d", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds");

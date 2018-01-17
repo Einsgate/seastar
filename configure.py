@@ -268,6 +268,7 @@ tests = [
     'tests/tls_simple_client',
     'tests/http_client',
     'tests/http_proxy',
+    'tests/http_proxy_alive',
     ]
 
 apps = [
@@ -493,6 +494,7 @@ deps = {
     'tests/tls_simple_client': ['tests/tls_simple_client.cc'] + core + libnet,
     'tests/http_client': ['tests/http_client.cc'] + core + libnet,
     'tests/http_proxy': ['tests/http_proxy.cc'] + core + libnet + http,
+    'tests/http_proxy_alive': ['tests/http_proxy_alive.cc'] + core + libnet + http,
 }
 
 boost_tests = [
