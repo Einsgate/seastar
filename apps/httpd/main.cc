@@ -25,11 +25,21 @@
 #include "http/file_handler.hh"
 #include "apps/httpd/demo.json.hh"
 #include "http/api_docs.hh"
+#include <string>
 
 namespace bpo = boost::program_options;
 
 using namespace seastar;
 using namespace httpd;
+
+std::string string_64k = std::string(64 * 1024, 'x');
+const char *s_64k = string_64k.c_str();
+const char *s_32k = s_64k + (32 * 1024);
+const char *s_16k = s_32k + (16 * 1024);
+const char *s_8k = s_16k + (8 * 1024);
+const char *s_4k = s_8k + (4 * 1024);
+const char *s_2k = s_4k + (2 * 1024);
+const char *s_1k = s_2k + (1 * 1024);
 
 class handl : public httpd::handler_base {
 public:
@@ -45,10 +55,38 @@ void set_routes(routes& r) {
     function_handler* h1 = new function_handler([](const_req req) {
         return "hello";
     });
+    function_handler* h64k = new function_handler([](const_req req) {
+        return s_64k;
+    });
+    function_handler* h32k = new function_handler([](const_req req) {
+        return s_32k;
+    });
+    function_handler* h16k = new function_handler([](const_req req) {
+        return s_16k;
+    });
+    function_handler* h8k = new function_handler([](const_req req) {
+        return s_8k;
+    });
+    function_handler* h4k = new function_handler([](const_req req) {
+        return s_4k;
+    });
+    function_handler* h2k = new function_handler([](const_req req) {
+        return s_2k;
+    });
+    function_handler* h1k = new function_handler([](const_req req) {
+        return s_1k;
+    });
     function_handler* h2 = new function_handler([](std::unique_ptr<request> req) {
         return make_ready_future<json::json_return_type>("json-future");
     });
     r.add(operation_type::GET, url("/"), h1);
+    r.add(operation_type::GET, url("/64k"), h64k);
+    r.add(operation_type::GET, url("/32k"), h32k);
+    r.add(operation_type::GET, url("/16k"), h16k);
+    r.add(operation_type::GET, url("/8k"), h8k);
+    r.add(operation_type::GET, url("/4k"), h4k);
+    r.add(operation_type::GET, url("/2k"), h2k);
+    r.add(operation_type::GET, url("/1k"), h1k);
     r.add(operation_type::GET, url("/jf"), h2);
     r.add(operation_type::GET, url("/file").remainder("path"),
             new directory_handler("/"));

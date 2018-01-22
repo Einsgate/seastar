@@ -6,21 +6,21 @@
 #include "core/distributed.hh"
 #include "core/semaphore.hh"
 #include "core/future-util.hh"
+#include "core/sleep.hh"
 #include <chrono>
 
 using namespace seastar;
 using namespace std;
 
-const char *http_request = "GET / HTTP/1.1\r\nHost: 10.28.1.13:10000\r\n\r\n";
+const char *http_request = "GET / HTTP/1.1\r\nHost: 10.29.1.13:10000\r\n\r\n";
 std::chrono::time_point<std::chrono::steady_clock> started;
 
-#define HTTP_DEBUG 1
+static int MY_HTTP_DEBUG = 0;
 
 template <typename... Args>
 void http_debug(const char* fmt, Args&&... args) {
-#if HTTP_DEBUG
+if(MY_HTTP_DEBUG)
     print(fmt, std::forward<Args>(args)...);
-#endif
 }
 
 class http_client {
@@ -81,11 +81,15 @@ public:
                         return make_ready_future<>();
                     }
                     auto content_len = std::stoi(it->second);
-                    //http_debug("Content-Length = %d\n", content_len);
+                    http_debug("Content-Length = %d\n", content_len);
                     // Read HTTP response body
                     return _read_buf.read_exactly(content_len).then([this] (temporary_buffer<char> buf) {
                         _nr_done++;
-                        //http_debug("%s\n", buf.get());
+                        http_debug("%s\n", buf.get());
+                        if(*(buf.get()) != '"'){
+                            print("May get wrong response content: %s\n", buf.get());
+                        }
+
                         if (_http_client->done(_nr_done)) {
                             return make_ready_future();
                         } else {
@@ -198,7 +202,8 @@ int main(int ac, char** av) {
         ("reqs-first,R", bpo::value<unsigned>()->default_value(0), "reqs per connection for first test")
         ("reqs,r", bpo::value<unsigned>()->default_value(0), "reqs per connection")
         ("duration-first,D", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds for first test")
-        ("duration,d", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds");
+        ("duration,d", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds")
+        ("debugmode,g", bpo::value<unsigned>()->default_value(0), "debug mode");
 
     return app.run(ac, av, [&app] () -> future<int> {
         auto& config = app.configuration();
@@ -206,6 +211,7 @@ int main(int ac, char** av) {
         auto _reqs_per_conn = config["reqs-first"].as<unsigned>();
         auto _total_conn= config["conn-first"].as<unsigned>();
         auto _duration = config["duration-first"].as<unsigned>();
+        MY_HTTP_DEBUG = config["debugmode"].as<unsigned>();
         
 
         if (_total_conn % smp::count != 0) {
@@ -214,18 +220,22 @@ int main(int ac, char** av) {
         }
 
         return test_once(server, _reqs_per_conn, _total_conn, _duration).then([&app] (int i) {
-            auto& config = app.configuration();
-            auto server = config["server"].as<std::string>();
-            auto reqs_per_conn = config["reqs"].as<unsigned>();
-            auto total_conn= config["conn"].as<unsigned>();
-            auto duration = config["duration"].as<unsigned>();
+            print("Sleep for 2s.");
+            using namespace std::chrono_literals;
+            return seastar::sleep(2s).then([&app] {
+                auto& config = app.configuration();
+                auto server = config["server"].as<std::string>();
+                auto reqs_per_conn = config["reqs"].as<unsigned>();
+                auto total_conn= config["conn"].as<unsigned>();
+                auto duration = config["duration"].as<unsigned>();
 
-            if (total_conn % smp::count != 0) {
-                print("Error: conn needs to be n * cpu_nr\n");
-                return make_ready_future<int>(-1);
-            }
+                if (total_conn % smp::count != 0) {
+                    print("Error: conn needs to be n * cpu_nr\n");
+                    return make_ready_future<int>(-1);
+                }
 
-            return test_once(server, reqs_per_conn, total_conn, duration);
+                return test_once(server, reqs_per_conn, total_conn, duration);
+            });
         });
     });
 }
