@@ -104,12 +104,18 @@ proxy_client_connection::~proxy_client_connection() {
 	_server.maybe_idle();
 }
 
+namespace bpo = boost::program_options;
 
 int main(int argc, char** argv) {
 	seastar::app_template app;
-	return app.run_deprecated(argc, argv, [] {
+	app.add_options()("port, p", bpo::value<uint16_t>()->default_value(10000),
+            "HTTP Proxy port");
+
+	return app.run_deprecated(argc, argv, [&] {
+		auto&& config = app.configuration();
+		auto port = config["port"].as<uint16_t>();
+
 		auto *server = new distributed<http_proxy_server>;
-		uint16_t port = 6666;
 
 		server->start().then([server, port] {
 			return server->invoke_on_all(&http_proxy_server::listen, ipv4_addr{port});
