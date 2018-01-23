@@ -12,7 +12,8 @@
 using namespace seastar;
 using namespace std;
 
-const char *http_request = "GET / HTTP/1.1\r\nHost: 10.29.1.13:10000\r\n\r\n";
+string http_request = string("");
+//const char *http_request = "GET / HTTP/1.1\r\nHost: 10.28.1.13:10000\r\n\r\n";
 std::chrono::time_point<std::chrono::steady_clock> started;
 
 static int MY_HTTP_DEBUG = 0;
@@ -81,14 +82,16 @@ public:
                         return make_ready_future<>();
                     }
                     auto content_len = std::stoi(it->second);
-                    http_debug("Content-Length = %d\n", content_len);
+                    //http_debug("Content-Length = %d\n", content_len);
+                    //if(content_len != 8194)
+                    //    print("content_len = %d ", content_len);
                     // Read HTTP response body
                     return _read_buf.read_exactly(content_len).then([this] (temporary_buffer<char> buf) {
                         _nr_done++;
-                        http_debug("%s\n", buf.get());
-                        if(*(buf.get()) != '"'){
-                            print("May get wrong response content: %s\n", buf.get());
-                        }
+                        //http_debug("%s\n", buf.get());
+                        //if(*(buf.get()) != '"'){
+                        //    print("May get wrong response content: %s\n", buf.get());
+                        //}
 
                         if (_http_client->done(_nr_done)) {
                             return make_ready_future();
@@ -203,6 +206,8 @@ int main(int ac, char** av) {
         ("reqs,r", bpo::value<unsigned>()->default_value(0), "reqs per connection")
         ("duration-first,D", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds for first test")
         ("duration,d", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds")
+        ("url,u", bpo::value<std::string>()->default_value("/"), "http request url")
+        ("host,h", bpo::value<std::string>()->default_value("10.28.1.13:10000"), "http request url")
         ("debugmode,g", bpo::value<unsigned>()->default_value(0), "debug mode");
 
     return app.run(ac, av, [&app] () -> future<int> {
@@ -211,8 +216,12 @@ int main(int ac, char** av) {
         auto _reqs_per_conn = config["reqs-first"].as<unsigned>();
         auto _total_conn= config["conn-first"].as<unsigned>();
         auto _duration = config["duration-first"].as<unsigned>();
+        auto url = config["url"].as<string>();
+        auto host = config["host"].as<string>();
         MY_HTTP_DEBUG = config["debugmode"].as<unsigned>();
         
+        http_request = string("GET ") + url + " HTTP/1.1\r\nHost: " + host + "\r\n\r\n";
+        http_debug(http_request.c_str());
 
         if (_total_conn % smp::count != 0) {
             print("Error: conn needs to be n * cpu_nr\n");
@@ -220,7 +229,7 @@ int main(int ac, char** av) {
         }
 
         return test_once(server, _reqs_per_conn, _total_conn, _duration).then([&app] (int i) {
-            print("Sleep for 2s.");
+            print("Sleep for 2s.\n");
             using namespace std::chrono_literals;
             return seastar::sleep(2s).then([&app] {
                 auto& config = app.configuration();

@@ -34,16 +34,18 @@
 using namespace seastar;
 using namespace net;
 using namespace std::chrono_literals;
+using namespace std;
 
-#define HTTP_DEBUG 0
-const char *http_request = "GET http://202.45.128.157:10000/ HTTP/1.1\r\nHost: 202.45.128.157:10000\r\n\r\n";
+//#define HTTP_DEBUG 1
+string http_request = string("");
+static int MY_HTTP_DEBUG = 0;
+//const char *http_request = "GET http://10.28.1.13:10000/ HTTP/1.1\r\nHost: 10.28.1.13:10000\r\n\r\n";
 std::chrono::time_point<std::chrono::steady_clock> started;
 
 template <typename... Args>
-void http_debug(const char* fmt, Args&&... args) {
-#if HTTP_DEBUG
+inline void http_debug(const char* fmt, Args&&... args) {
+if(MY_HTTP_DEBUG)
     print(fmt, std::forward<Args>(args)...);
-#endif
 }
 
 class http_client {
@@ -101,11 +103,15 @@ public:
         }
 
         future<> do_req_once() {
+            print("-------------------------- 1 -------------------------\n");
             return _write_buf.write(http_request).then([this] {
+                print("-------------------------- 2 -------------------------\n");
                 return _write_buf.flush();
             }).then([this] {
+                print("-------------------------- 3 -------------------------\n");
                 _parser.init();
                 return _read_buf.consume(_parser).then([this] {
+                    print("-------------------------- 4 -------------------------\n");
                     // Read HTTP response header first
                     if (_parser.eof()) {
                         return make_ready_future<>();
@@ -113,7 +119,7 @@ public:
                     auto _rsp = _parser.get_parsed_response();
                     auto it = _rsp->_headers.find("Content-Length");
                     if (it == _rsp->_headers.end()) {
-                        //print("Error: HTTP response does not contain: Content-Length\n");
+                        print("Error: HTTP response does not contain: Content-Length\n");
                         //return make_ready_future<>();
                         return _read_buf.read().then([this] (temporary_buffer<char> buf) {
                             _nr_done++;
@@ -147,7 +153,7 @@ public:
                 return std::move(f);
             }
 
-            http_debug("Start establishing connection %6d on cpu %3d\n", _conn_connected.current(), engine().cpu_id());
+            //http_debug("Start establishing connection %6d on cpu %3d\n", _conn_connected.current(), engine().cpu_id());
             engine().net().connect(make_ipv4_address(_server_addr)).then([this] (connected_socket fd) {
                 http_debug("Established connection %6d on cpu %3d\n", _conn_connected.current(), engine().cpu_id());
                 auto conn = new connection(std::move(fd), this, _conn_connected.current());
@@ -165,7 +171,7 @@ public:
                     _conn_aviliable.signal(1);
                     try {
                         f.get();
-                        http_debug("Successful connection %6d on cpu %3d\n", no, engine().cpu_id());
+                        //http_debug("Successful connection %6d on cpu %3d\n", no, engine().cpu_id());
                         return make_ready_future();
                     } catch (std::exception& ex) {
                         print("do_req(): http request error: %s\n", ex.what());
@@ -176,7 +182,7 @@ public:
                     }
                 });
             }).or_terminate();
-            http_debug("After starting establishing connection %6d on cpu %3d\n", _conn_connected.current(), engine().cpu_id());
+            //http_debug("After starting establishing connection %6d on cpu %3d\n", _conn_connected.current(), engine().cpu_id());
 
             _nr_started++;
             if(this->done(_nr_started)) {
@@ -290,13 +296,16 @@ namespace bpo = boost::program_options;
 int main(int ac, char** av) {
     app_template app;
     app.add_options()
-        ("server,s", bpo::value<std::string>()->default_value("202.45.128.157:6666"), "Server address")
+        ("server,s", bpo::value<std::string>()->default_value("10.28.1.12:10000"), "Server address")
         ("first-conn,C", bpo::value<unsigned>()->default_value(1), "max parallel connections for first test")
         ("first-reqs,R", bpo::value<unsigned>()->default_value(0), "total reqs (must be n * cpu_nr) for first test")
         ("first-duration,D", bpo::value<unsigned>()->default_value(30), "duration of the test in seconds for first test")
         ("conn,c", bpo::value<unsigned>()->default_value(10), "max parallel connections")
         ("reqs,r", bpo::value<unsigned>()->default_value(0), "total reqs (must be n * cpu_nr)")
-        ("duration,d", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds");
+        ("duration,d", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds")
+        ("url,u", bpo::value<std::string>()->default_value("/"), "http request url")
+        ("host,h", bpo::value<std::string>()->default_value("10.28.1.13:10000"), "http request url")
+        ("debugmode,g", bpo::value<unsigned>()->default_value(0), "debug mode");
 
     return app.run(ac, av, [&app] () -> future<int> {
         auto& config = app.configuration();
@@ -307,6 +316,12 @@ int main(int ac, char** av) {
         auto total_reqs= config["reqs"].as<unsigned>();
         auto first_duration = config["first-duration"].as<unsigned>();
         auto duration = config["duration"].as<unsigned>();
+        auto url = config["url"].as<string>();
+        auto host = config["host"].as<string>();
+        MY_HTTP_DEBUG = config["debugmode"].as<unsigned>();
+
+        http_request = string("GET http://") + host + url + " HTTP/1.0\r\nHost: " + host + "\r\n\r\n";
+        http_debug(http_request.c_str());
 
         return test_once(server, first_max_para_conn, first_total_reqs, first_duration).then([server, max_para_conn, total_reqs, duration] (int res) {
             if(res){
