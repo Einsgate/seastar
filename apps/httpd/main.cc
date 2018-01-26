@@ -79,18 +79,13 @@ void set_routes(routes& r) {
     function_handler* h2 = new function_handler([](std::unique_ptr<request> req) {
         return make_ready_future<json::json_return_type>("json-future");
     });
-    r.add(operation_type::GET, url("http://10.28.1.13:10000/"), h1);
     r.add(operation_type::GET, url("/"), h1);
     r.add(operation_type::GET, url("/64k"), h64k);
-    r.add(operation_type::GET, url("http://10.28.1.13:10000/32k"), h32k);
     r.add(operation_type::GET, url("/32k"), h32k);
     r.add(operation_type::GET, url("/16k"), h16k);
-    r.add(operation_type::GET, url("http://10.28.1.13:10000/8k"), h8k);
     r.add(operation_type::GET, url("/8k"), h8k);
     r.add(operation_type::GET, url("/4k"), h4k);
-    r.add(operation_type::GET, url("http://10.28.1.13:10000/2k"), h2k);
     r.add(operation_type::GET, url("/2k"), h2k);
-    r.add(operation_type::GET, url("http://10.28.1.13:10000/1k"), h1k);
     r.add(operation_type::GET, url("/1k"), h1k);
     r.add(operation_type::GET, url("/jf"), h2);
     r.add(operation_type::GET, url("/file").remainder("path"),

@@ -8,12 +8,14 @@
 #include "core/future-util.hh"
 #include "core/sleep.hh"
 #include <chrono>
+#include <vector>
+#include <fstream>
 
 using namespace seastar;
 using namespace std;
 
 string http_request = string("");
-//const char *http_request = "GET / HTTP/1.1\r\nHost: 10.28.1.13:10000\r\n\r\n";
+string rtt_path = string("/home/net/jjwang/testrtt");
 std::chrono::time_point<std::chrono::steady_clock> started;
 
 static int MY_HTTP_DEBUG = 0;
@@ -23,6 +25,56 @@ void http_debug(const char* fmt, Args&&... args) {
 if(MY_HTTP_DEBUG)
     print(fmt, std::forward<Args>(args)...);
 }
+
+class rtt_test {
+    using timePoint = std::chrono::time_point<std::chrono::steady_clock>;
+    using arithType = chrono::steady_clock::rep;
+    timePoint _begin;
+    timePoint _end;
+    unsigned _interval;
+    unsigned _counter = 0;
+    unsigned _max_results = 1000;
+    vector<arithType> _results;
+    fstream _store_file;
+public:
+    explicit rtt_test(string path, unsigned interval = 1000) : _interval(interval) {
+        _store_file.open(path, ofstream::out);
+        if(!_store_file) {
+            assert(0 && "Can not open the specific file.");
+        }
+    }
+
+    inline void start() {
+        if(_results.size() < _max_results && ++_counter >= _interval)
+            _begin = steady_clock_type::now();
+    }
+
+    inline void stop() {
+        if(_results.size() < _max_results && _counter >= _interval) {
+            _counter = 0;
+            _end = steady_clock_type::now();
+            auto elapsed = _end - _begin;
+            //auto secs = static_cast<double>(elapsed.count() / 1000000000.0);
+            //return elapsed;
+            _results.push_back(elapsed.count());
+        }
+    }
+
+    inline auto average() {
+        arithType total = 0;
+        for(auto &res : _results) {
+            total += res;
+            _store_file << res << '\n';
+        }
+
+        auto avg = total / _results.size();
+        _store_file << '\n' << avg << '\n';
+        return avg;
+    }
+};
+
+rtt_test *rtt[20] = {0};
+bool global_rtt_mark[20] = {0};
 
 class http_client {
 private:
@@ -36,6 +88,7 @@ private:
     bool _timer_based;
     bool _timer_done{false};
     uint64_t _total_reqs{0};
+    
 public:
     http_client(unsigned duration, unsigned total_conn, unsigned reqs_per_conn)
         : _duration(duration)
@@ -43,6 +96,7 @@ public:
         , _reqs_per_conn(reqs_per_conn)
         , _run_timer([this] { _timer_done = true; })
         , _timer_based(reqs_per_conn == 0) {
+        
     }
 
     class connection {
@@ -53,12 +107,16 @@ public:
         http_response_parser _parser;
         http_client* _http_client;
         uint64_t _nr_done{0};
+        bool _rtt_mark = false;
     public:
         connection(connected_socket&& fd, http_client* client)
             : _fd(std::move(fd))
             , _read_buf(_fd.input())
             , _write_buf(_fd.output())
             , _http_client(client){
+            unsigned int id = engine().cpu_id();
+            _rtt_mark = global_rtt_mark[id];
+            global_rtt_mark[id] = false;
         }
 
         uint64_t nr_done() {
@@ -66,6 +124,11 @@ public:
         }
 
         future<> do_req() {
+            unsigned int id = engine().cpu_id();
+            if(_rtt_mark && rtt[id]){
+                rtt[id]->start();
+            }
+
             return _write_buf.write(http_request).then([this] {
                 return _write_buf.flush();
             }).then([this] {
@@ -92,6 +155,10 @@ public:
                         //if(*(buf.get()) != '"'){
                         //    print("May get wrong response content: %s\n", buf.get());
                         //}
+                        unsigned int id = engine().cpu_id();
+                        if(_rtt_mark && rtt[id]){
+                            rtt[id]->stop();
+                        }
 
                         if (_http_client->done(_nr_done)) {
                             return make_ready_future();
@@ -208,6 +275,8 @@ int main(int ac, char** av) {
         ("duration,d", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds")
         ("url,u", bpo::value<std::string>()->default_value("/"), "http request url")
         ("host,h", bpo::value<std::string>()->default_value("10.28.1.13:10000"), "http request url")
+        ("rttmode,r", bpo::value<unsigned>()->default_value(0), "test rtt if on")
+        ("interval,i", bpo::value<unsigned>()->default_value(1000), "rtt test interval (count by request)")
         ("debugmode,g", bpo::value<unsigned>()->default_value(0), "debug mode");
 
     return app.run(ac, av, [&app] () -> future<int> {
@@ -237,13 +306,35 @@ int main(int ac, char** av) {
                 auto reqs_per_conn = config["reqs"].as<unsigned>();
                 auto total_conn= config["conn"].as<unsigned>();
                 auto duration = config["duration"].as<unsigned>();
+                unsigned rttmode = config["rttmode"].as<unsigned>();
+                unsigned interval = config["interval"].as<unsigned>();
+                auto url = config["url"].as<string>();
+
+
+                if(rttmode) {
+                    for(unsigned i = 0; i < smp::count; i++){
+                        rtt[i] = new rtt_test(rtt_path + url + to_string(i), interval);
+                        global_rtt_mark[i] = true;
+                    }
+                }
 
                 if (total_conn % smp::count != 0) {
                     print("Error: conn needs to be n * cpu_nr\n");
                     return make_ready_future<int>(-1);
                 }
 
-                return test_once(server, reqs_per_conn, total_conn, duration);
+                return test_once(server, reqs_per_conn, total_conn, duration).then_wrapped([] (auto &&f) {
+                    for(unsigned i = 0; i < smp::count; i++) {
+                        if(rtt[i]){
+                            rtt[i]->average();
+
+                            delete rtt[i];
+                            rtt[i] = nullptr;
+                        }
+                    }
+                    
+                    return std::move(f);
+                });
             });
         });
     });

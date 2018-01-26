@@ -30,6 +30,8 @@
 #include "core/sleep.hh"
 #include <chrono>
 #include <cstring>
+#include <vector>
+#include <fstream>
 
 using namespace seastar;
 using namespace net;
@@ -39,7 +41,7 @@ using namespace std;
 //#define HTTP_DEBUG 1
 string http_request = string("");
 static int MY_HTTP_DEBUG = 0;
-//const char *http_request = "GET http://10.28.1.13:10000/ HTTP/1.1\r\nHost: 10.28.1.13:10000\r\n\r\n";
+string rtt_path = string("/home/net/jjwang/testrtt");
 std::chrono::time_point<std::chrono::steady_clock> started;
 
 template <typename... Args>
@@ -47,6 +49,56 @@ inline void http_debug(const char* fmt, Args&&... args) {
 if(MY_HTTP_DEBUG)
     print(fmt, std::forward<Args>(args)...);
 }
+
+class rtt_test {
+    using timePoint = std::chrono::time_point<std::chrono::steady_clock>;
+    using arithType = chrono::steady_clock::rep;
+    timePoint _begin;
+    timePoint _end;
+    unsigned _interval;
+    unsigned _counter = 0;
+    unsigned _max_results = 1000;
+    vector<arithType> _results;
+    fstream _store_file;
+public:
+    explicit rtt_test(string path, unsigned interval = 1000) : _interval(interval) {
+        _store_file.open(path, ofstream::out);
+        if(!_store_file) {
+            assert(0 && "Can not open the specific file.");
+        }
+    }
+
+    inline void start() {
+        if(_results.size() < _max_results && ++_counter >= _interval)
+            _begin = steady_clock_type::now();
+    }
+
+    inline void stop() {
+        if(_results.size() < _max_results && _counter >= _interval) {
+            _counter = 0;
+            _end = steady_clock_type::now();
+            auto elapsed = _end - _begin;
+            //auto secs = static_cast<double>(elapsed.count() / 1000000000.0);
+            //return elapsed;
+            _results.push_back(elapsed.count());
+        }
+    }
+
+    inline auto average() {
+        arithType total = 0;
+        for(auto &res : _results) {
+            total += res;
+            _store_file << res << '\n';
+        }
+
+        auto avg = total / _results.size();
+        _store_file << '\n' << avg << '\n';
+        return avg;
+    }
+};
+
+rtt_test *rtt[20] = {0};
+//bool global_rtt_mark[20] = {0};
 
 class http_client {
 private:
@@ -103,15 +155,16 @@ public:
         }
 
         future<> do_req_once() {
-            print("-------------------------- 1 -------------------------\n");
+            unsigned int id = engine().cpu_id();
+            if(rtt[id]){
+                rtt[id]->start();
+            }
+
             return _write_buf.write(http_request).then([this] {
-                print("-------------------------- 2 -------------------------\n");
                 return _write_buf.flush();
             }).then([this] {
-                print("-------------------------- 3 -------------------------\n");
                 _parser.init();
                 return _read_buf.consume(_parser).then([this] {
-                    print("-------------------------- 4 -------------------------\n");
                     // Read HTTP response header first
                     if (_parser.eof()) {
                         return make_ready_future<>();
@@ -123,10 +176,10 @@ public:
                         //return make_ready_future<>();
                         return _read_buf.read().then([this] (temporary_buffer<char> buf) {
                             _nr_done++;
-                            http_debug("%s\n", buf.get());
-                            if(strncmp(buf.get(), "\"hello\"", 7) && strncmp(buf.get(), "hello", 5)){
-                                print("May get wrong response content: %s\n", buf.get());
-                            }
+                            //http_debug("%s\n", buf.get());
+                            //if(strncmp(buf.get(), "\"hello\"", 7) && strncmp(buf.get(), "hello", 5)){
+                            //    print("May get wrong response content: %s\n", buf.get());
+                            //}
                             return make_ready_future();
                         });
                     }
@@ -136,8 +189,12 @@ public:
                     return _read_buf.read_exactly(content_len).then([this] (temporary_buffer<char> buf) {
                         _nr_done++;
                         http_debug("%s\n", buf.get());
-                        if(strncmp(buf.get(), "\"hello\"", 7) && strncmp(buf.get(), "hello", 5)){
-                            print("May get wrong response content: %s\n", buf.get());
+                        //if(strncmp(buf.get(), "\"hello\"", 7) && strncmp(buf.get(), "hello", 5)){
+                        //    print("May get wrong response content: %s\n", buf.get());
+                        //}
+                        unsigned int id = engine().cpu_id();
+                        if(rtt[id]){
+                            rtt[id]->stop();
                         }
                         return make_ready_future();
                     });
@@ -305,6 +362,8 @@ int main(int ac, char** av) {
         ("duration,d", bpo::value<unsigned>()->default_value(10), "duration of the test in seconds")
         ("url,u", bpo::value<std::string>()->default_value("/"), "http request url")
         ("host,h", bpo::value<std::string>()->default_value("10.28.1.13:10000"), "http request url")
+        ("rttmode,r", bpo::value<unsigned>()->default_value(0), "test rtt if on")
+        ("interval,i", bpo::value<unsigned>()->default_value(1000), "rtt test interval (count by request)")
         ("debugmode,g", bpo::value<unsigned>()->default_value(0), "debug mode");
 
     return app.run(ac, av, [&app] () -> future<int> {
@@ -323,11 +382,35 @@ int main(int ac, char** av) {
         http_request = string("GET http://") + host + url + " HTTP/1.0\r\nHost: " + host + "\r\n\r\n";
         http_debug(http_request.c_str());
 
-        return test_once(server, first_max_para_conn, first_total_reqs, first_duration).then([server, max_para_conn, total_reqs, duration] (int res) {
+        return test_once(server, first_max_para_conn, first_total_reqs, first_duration).then([&app, server, max_para_conn, total_reqs, duration] (int res) {
             if(res){
                 print("\x1B[31mFirst test failed. Can not guarantee the correctness of next test.\x1B[0m\n");
             }
-            return test_once(server, max_para_conn, total_reqs, duration);
+
+            auto& config = app.configuration();
+            auto url = config["url"].as<string>();
+            unsigned rttmode = config["rttmode"].as<unsigned>();
+            unsigned interval = config["interval"].as<unsigned>();
+
+            if(rttmode) {
+                for(unsigned i = 0; i < smp::count; i++){
+                    rtt[i] = new rtt_test(rtt_path + url + to_string(i), interval);
+                    //global_rtt_mark[i] = true;
+                }
+            }
+
+            return test_once(server, max_para_conn, total_reqs, duration).then_wrapped([] (auto &&f) {
+                for(unsigned i = 0; i < smp::count; i++) {
+                    if(rtt[i]){
+                        rtt[i]->average();
+
+                        delete rtt[i];
+                        rtt[i] = nullptr;
+                    }
+                }
+                
+                return std::move(f);
+            });
         });
     });
 }
