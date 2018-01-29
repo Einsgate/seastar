@@ -68,8 +68,11 @@ future<> proxy_server_connection::process() {
 			//send respond back to client
 			return _response.send_without_body(_client_connection._write_buf);
 		}).then([this] {
-			if(_response.content_length == 0) _response.content_length = -1; //indicate the body size is not given
-			return proxy_client_connection::forward_data_zero_copy(_client_connection._write_buf, _read_buf, _response.content_length);
+			if(_response.content_length == 0){//indicate the body size is not given
+				return proxy_client_connection::forward_data_zero_copy(_client_connection._write_buf, _read_buf, -1, true);
+			}  
+			else
+				return proxy_client_connection::forward_data_zero_copy(_client_connection._write_buf, _read_buf, _response.content_length);
 		}).then([this] {
 			return _client_connection._write_buf.flush();
 		});

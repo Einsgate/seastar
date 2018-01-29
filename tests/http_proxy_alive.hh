@@ -374,16 +374,24 @@ public:
 
 private:
 	//forward len Bytes from dest to src
-	static future<> forward_data_zero_copy(output_stream<char> &dest, input_stream<char> &src, size_t len) {
-		return do_with(std::move(len), [&dest, &src] (size_t &len) {
+	static future<> forward_data_zero_copy(output_stream<char> &dest, input_stream<char> &src, size_t len, bool chunked = false) {
+		return do_with(std::move(len), [&dest, &src, chunked] (size_t &len) {
 			return do_until([&len] {
 				return len == 0;
-			}, [&dest, &src, &len] {
-				return src.read().then([&dest, &len] (auto &&buf) {
+			}, [&dest, &src, &len, chunked] {
+				return src.read().then([&dest, &len, chunked] (auto &&buf) {
+					log_message("Forwarding %d Bytes\n", buf.size());
 					if(buf.empty()){
 						len = 0;	//end loop
 						return make_ready_future<>();
 					}
+
+					if(chunked && buf.size() == 5 && !strncmp(buf.get(), "0\r\n\r\n", 5)){
+						len = 0;	//chunk end
+						log_message("chunk end\n");
+						return dest.write(std::move(buf));
+					}
+
 					len -= buf.size();
 					return dest.write(std::move(buf));
 				});
